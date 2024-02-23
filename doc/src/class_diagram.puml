@@ -1,0 +1,68 @@
+@startuml class_diagram
+
+interface IProtocol {
+    -ipAddress: String
+    -port: Number
+    +socket(): void
+    +sendto(): void
+    +recvfrom(): void
+    +close(): void
+}
+
+class TCPProtocol implements IProtocol {
+    +connect(): void
+    +openConnection(): void
+    +authorize(): void
+    +joinChat(): void
+    +sendMessage(): void
+    +sendERR(): void
+}
+
+class UDPProtocol implements IProtocol {
+    -timeOut: Number
+    -retries: Number
+}
+
+class Client {
+    -protocol: IProtocol
+    -currentState: State
+    +run(): void
+    +changeState(state: State): void
+    +sendMessage(message: Message): void
+    +receiveMessage(): void
+}
+
+interface State {
+    +handleInput(input: String): void
+}
+
+class StartState implements State {
+    +handleInput(input: String): void
+    +printLicense(): void
+    +loadAuth(): void
+}
+
+class AuthState implements State {
+    +handleInput(input: String): void
+    +getReply(): void
+    +loadAuth(): void
+}
+
+class OpenState implements State {
+    +handleInput(input: String): void
+    +joinChat(): void
+    +sendMessage(message: Message): void
+}
+
+class ErrorState implements State {
+    +handleInput(input: String): void
+}
+
+class EndState implements State {
+    +handleInput(input: String): void
+}
+
+Client "1" --> "1" IProtocol : uses >
+Client "1" --> "1" State : has >
+
+@enduml
