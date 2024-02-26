@@ -3,18 +3,18 @@ CXX=g++
 CXXFLAGS=-Wall -std=c++20
 
 # Define all targets
-all: client
+all: main
 
-# Compile the client program
-client: client.cpp
-	$(CXX) $(CXXFLAGS) client.cpp -o ./bin/client
+# Compile the main program
+main: main.cpp
+	$(CXX) $(CXXFLAGS) main.cpp -o ./bin/main
 
 # Start a server listening on port 8888 using netcat
 start_server:
 	@echo "Starting server on port 8080..."
 	@nc -l 127.0.0.1 8080 &
 
-# Run the client program to send a message
+# Run the main program to send a message
 send_message: main
 	@./bin/main
 
@@ -27,4 +27,3 @@ clean:
 	rm -f ./bin/*
 
 .PHONY: all start_server send_message clean
-
