@@ -1,3 +1,6 @@
+#ifndef NET_UTILS_H
+#define NET_UTILS_H
+
 #include <string>
 #include <vector>
 
@@ -9,7 +12,7 @@ enum class ParamRegex {
     MessageContent
 };
 
-const std::string regexPatterns[] = {
+inline const std::string regexPatterns[] = {
     "^[A-Za-z0-9-]{1,20}$",   // Username: 1-20 characters, A-z, 0-9, and hyphen.
     "^[A-Za-z0-9-]{1,20}$",   // ChannelID: Same as Username.
     "^[A-Za-z0-9-]{1,128}$",  // Secret: 1-128 characters, A-z, 0-9, and hyphen.
@@ -27,3 +30,5 @@ class Mail {
     int type;
     std::vector<std::string> args; // Use vector for dynamic array
 };
+
+#endif // NET_UTILS_H

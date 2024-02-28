@@ -1,3 +1,6 @@
+#ifndef NET_H
+#define NET_H
+
 #include <memory> // For std::unique_ptr
 #include <string>
 #include <unistd.h> // Depending on your needs, this might be used for sleep, etc.
@@ -91,3 +94,5 @@ class NetworkConnection {
     bool closeConnection();
     void setProtocol(NetworkProtocol *p);
 };
+
+#endif // NET_H

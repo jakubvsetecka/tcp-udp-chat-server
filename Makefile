@@ -22,7 +22,7 @@ send_message: main
 	@./bin/main
 
 run:
-	@$(CXX) $(CXXFLAGS) main.cpp -o ./bin/main
+	$(CXX) $(CXXFLAGS) -I$(HEADERS) main.cpp $(SRC_FILES) -o ./bin/main
 	@./bin/main
 
 # Clean up compiled binaries
