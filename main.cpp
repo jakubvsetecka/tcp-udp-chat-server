@@ -41,6 +41,7 @@ class NetworkProtocol {
     std::string ip;
     int port;
     int sockfd; // Socket file descriptor
+    struct sockaddr_in server_addr;
 
   public:
     virtual void sendData(const Mail &mail) = 0;
@@ -49,6 +50,8 @@ class NetworkProtocol {
     virtual bool closeConnection() = 0;
     virtual ~NetworkProtocol() {}
 };
+
+//==============================================================================
 
 class TcpProtocol : public NetworkProtocol {
   private:
@@ -62,7 +65,6 @@ class TcpProtocol : public NetworkProtocol {
     }
 
     bool connectToServer() {
-        struct sockaddr_in server_addr;
         memset(&server_addr, 0, sizeof(server_addr));
         server_addr.sin_family = AF_INET;
         server_addr.sin_port = htons(port);
@@ -130,17 +132,91 @@ class TcpProtocol : public NetworkProtocol {
     }
 };
 
+//==============================================================================
+
 class UdpProtocol : public NetworkProtocol {
   private:
-    void sendData(const Mail &mail) override;
-    Mail receiveData() override;
-    bool openConnection() override;
-    bool closeConnection() override;
+    bool createSocket() {
+        sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sockfd < 0) {
+            std::cerr << "Failed to create socket" << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+    bool connectToServer() {
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(port);
+        if (inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) <= 0) {
+            std::cerr << "Invalid address/ Address not supported" << std::endl;
+            return false;
+        }
+
+        if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+            std::cerr << "Connection Failed" << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+    bool sendTo(const char *buffer, int size) {
+        std::cerr << "Sending data to " << ip << " on port " << port << std::endl;
+        int bytes_to_send = sendto(sockfd, buffer, size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+        if (bytes_to_send < 0) {
+            std::cerr << "Failed to send data" << std::endl;
+            return false;
+        }
+        return true;
+    }
 
   public:
     UdpProtocol(const std::string &ip, const int &port) {
         this->ip = ip;
         this->port = port;
+    }
+    ~UdpProtocol() {
+        if (sockfd >= 0) {
+            close(sockfd); // Ensure the socket is closed on destruction
+        }
+    }
+    bool openConnection() override {
+        if (!createSocket()) {
+            return false;
+        }
+        if (!connectToServer()) {
+            return false;
+        }
+
+        std::cout << "Connected successfully to " << ip << " on port " << port << std::endl;
+        return true;
+    }
+
+    bool closeConnection() override {
+        if (sockfd >= 0) {
+            close(sockfd);
+            sockfd = -1;
+        }
+        std::cout << "Connection closed" << std::endl;
+        return true;
+    }
+
+    void sendData(const Mail &mail) override {
+        sendTo(mail.args[0].c_str(), mail.args[0].size());
+    }
+
+    Mail receiveData() override {
+        Mail mail;
+        char buffer[1024] = {0};
+        int bytes_received = recv(sockfd, buffer, 1024, 0);
+        if (bytes_received < 0) {
+            std::cerr << "Failed to receive data" << std::endl;
+            mail.type = -1;
+            return mail;
+        }
+        mail.args.push_back(std::string(buffer));
+        return mail;
     }
 };
 
@@ -181,6 +257,7 @@ class NetworkConnection {
         if (protocolPtr) {
             return protocolPtr->closeConnection();
         }
+        return false;
     }
     void setProtocol(NetworkProtocol *p) {
         protocolPtr.reset(p);
@@ -188,13 +265,13 @@ class NetworkConnection {
 };
 
 int main() {
-    ProtocolType type = ProtocolType::TCP;
+    ProtocolType type = ProtocolType::UDP;
     NetworkConnection connection(type, "127.0.0.1", 8080);
     connection.openConnection();
 
     Mail mail;
     mail.type = 1;
-    mail.args.push_back("Hello, World!");
+    mail.args.push_back("Hello, World!\n");
     connection.sendData(mail);
 
     connection.closeConnection();
