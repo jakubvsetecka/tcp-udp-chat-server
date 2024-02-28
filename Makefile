@@ -9,7 +9,7 @@ all: main
 main: main.cpp
 	$(CXX) $(CXXFLAGS) main.cpp -o ./bin/main
 
-# Start a server listening on port 8888 using netcat
+# Start a server listening on port 8080 using netcat
 start_server:
 	@echo "Starting server on port 8080..."
 	@nc -l 127.0.0.1 8080 &
