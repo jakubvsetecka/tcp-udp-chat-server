@@ -1,13 +1,15 @@
 # Define compiler
 CXX=g++
 CXXFLAGS=-Wall -std=c++20
+HEADERS=./src/headers
+SRC_FILES=./src/*.cpp
 
 # Define all targets
 all: main
 
 # Compile the main program
 main: main.cpp
-	$(CXX) $(CXXFLAGS) main.cpp -o ./bin/main
+	$(CXX) $(CXXFLAGS) -I$(HEADERS) main.cpp $(SRC_FILES) -o ./bin/main
 
 # Start a server listening on port 8080 using netcat
 # -u for UDP
