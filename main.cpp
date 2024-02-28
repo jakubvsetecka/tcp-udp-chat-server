@@ -46,16 +46,12 @@ class NetworkProtocol {
     virtual void sendData(const Mail &mail) = 0;
     virtual Mail receiveData() = 0;
     virtual bool openConnection() = 0;
-    virtual void closeConnection() = 0;
+    virtual bool closeConnection() = 0;
     virtual ~NetworkProtocol() {}
 };
 
 class TcpProtocol : public NetworkProtocol {
   private:
-    void sendData(const Mail &mail) override {}
-    Mail receiveData() override {}
-    void closeConnection() override {}
-
     bool createSocket() {
         sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd < 0) {
@@ -103,6 +99,35 @@ class TcpProtocol : public NetworkProtocol {
         std::cout << "Connected successfully to " << ip << " on port " << port << std::endl;
         return true;
     }
+
+    bool closeConnection() override {
+        if (sockfd >= 0) {
+            close(sockfd);
+            sockfd = -1;
+        }
+        std::cout << "Connection closed" << std::endl;
+        return true;
+    }
+
+    void sendData(const Mail &mail) override {
+        int bytes_to_send = send(sockfd, mail.args[0].c_str(), mail.args[0].size(), 0);
+        if (bytes_to_send < 0) {
+            std::cerr << "Failed to send data" << std::endl;
+        }
+    }
+
+    Mail receiveData() override {
+        Mail mail;
+        char buffer[1024] = {0};
+        int bytes_received = recv(sockfd, buffer, 1024, 0);
+        if (bytes_received < 0) {
+            std::cerr << "Failed to receive data" << std::endl;
+            mail.type = -1;
+            return mail;
+        }
+        mail.args.push_back(std::string(buffer));
+        return mail;
+    }
 };
 
 class UdpProtocol : public NetworkProtocol {
@@ -110,7 +135,7 @@ class UdpProtocol : public NetworkProtocol {
     void sendData(const Mail &mail) override;
     Mail receiveData() override;
     bool openConnection() override;
-    void closeConnection() override;
+    bool closeConnection() override;
 
   public:
     UdpProtocol(const std::string &ip, const int &port) {
@@ -152,7 +177,7 @@ class NetworkConnection {
             return false;
         }
     }
-    void closeConnection() {
+    bool closeConnection() {
         if (protocolPtr) {
             return protocolPtr->closeConnection();
         }
@@ -166,6 +191,13 @@ int main() {
     ProtocolType type = ProtocolType::TCP;
     NetworkConnection connection(type, "127.0.0.1", 8080);
     connection.openConnection();
+
+    Mail mail;
+    mail.type = 1;
+    mail.args.push_back("Hello, World!");
+    connection.sendData(mail);
+
+    connection.closeConnection();
 
     return 0;
 }
