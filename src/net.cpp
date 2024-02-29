@@ -148,20 +148,28 @@ bool UdpProtocol::closeConnection() {
 
 Mail UdpProtocol::receiveFrom() {
     Mail mail;
+
+    struct sockaddr_in server_addr; // Ensure this is defined somewhere accessible
+    struct sockaddr *addr = (struct sockaddr *)&server_addr;
+    socklen_t addrlen = sizeof(server_addr);
+    int flags = 0;
+
     char buffer[1024] = {0};
-    int bytes_received = recv(sockfd, buffer, 1024, 0);
+    int bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), flags, addr, &addrlen);
+
+    std::cout << "Received " << bytes_received << " bytes" << std::endl;
+
     if (bytes_received < 0) {
         std::cerr << "Failed to receive data" << std::endl;
-        mail.type = -1;
-        return mail;
+        mail.type = -1; // Consider using a named constant or enum for error codes
+        std::cerr << "Failed to receive data, errno: " << errno << std::endl;
+    } else {
+        mail.args.push_back(std::string(buffer, bytes_received)); // Use bytes_received to include all data
     }
-    mail.args.push_back(std::string(buffer));
     return mail;
 }
 
 void UdpProtocol::sendData(const Mail &mail) {
-
-    // implement retries and timeout
 
     struct epoll_event ev, events[10];
 
@@ -183,10 +191,17 @@ void UdpProtocol::sendData(const Mail &mail) {
         sendTo(mail.args[0].c_str(), mail.args[0].size());
 
         bool waiting = true;
+        double milisec_count = this->timeout;
+
         while (waiting) {
             // start timer
-            int nfds = epoll_wait(epollfd, events, 10, timeout);
+            StopWatch timer;
+            int nfds = epoll_wait(epollfd, events, 10, milisec_count);
             // get time
+            double duration = timer.duration();
+
+            std::cout << "Duration: " << duration << std::endl;
+            std::cout << "milisec_count: " << milisec_count << std::endl;
             std::cout << "nfds: " << nfds << std::endl;
 
             switch (nfds) {
@@ -210,6 +225,7 @@ void UdpProtocol::sendData(const Mail &mail) {
                         return;
                     } else {
                         std::cerr << "Received wrong data" << std::endl;
+                        milisec_count -= duration; // subtract time passed
                     }
                 }
             }

@@ -13,6 +13,7 @@
 #include <sys/socket.h> // For socket functions
 
 #include "net-utils.h"
+#include "stopwatch.h"
 
 //=================================NetworkProtocol=============================================
 /**
