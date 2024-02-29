@@ -22,9 +22,9 @@ class ArgumentParser {
   public:
     ProtocolType type;
     std::string ip;
-    int port = 4567;
-    int timeout = 250;
-    int retries = 3;
+    uint16_t port = 4567;
+    uint16_t timeout = 250;
+    uint8_t retries = 3;
 
     ArgumentParser(int argc, char *argv[]);
     void print();

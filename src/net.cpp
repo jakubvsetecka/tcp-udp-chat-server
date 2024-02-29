@@ -25,9 +25,11 @@ bool TcpProtocol::connectToServer() {
     return true;
 }
 
-TcpProtocol::TcpProtocol(const std::string &ip, const int &port) {
+TcpProtocol::TcpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout, const uint16_t &retries) {
     this->ip = ip;
     this->port = port;
+    this->timeout = timeout;
+    this->retries = retries;
 }
 TcpProtocol::~TcpProtocol() {
     if (sockfd >= 0) {
@@ -76,6 +78,7 @@ Mail TcpProtocol::receiveData() {
 }
 
 //==============================================================================
+
 bool UdpProtocol::createSocket() {
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
@@ -111,9 +114,11 @@ bool UdpProtocol::sendTo(const char *buffer, int size) {
     return true;
 }
 
-UdpProtocol::UdpProtocol(const std::string &ip, const int &port) {
+UdpProtocol::UdpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout, const uint16_t &retries) {
     this->ip = ip;
     this->port = port;
+    this->timeout = timeout;
+    this->retries = retries;
 }
 UdpProtocol::~UdpProtocol() {
     if (sockfd >= 0) {
@@ -158,11 +163,13 @@ Mail UdpProtocol::receiveData() {
     return mail;
 }
 
-NetworkConnection::NetworkConnection(ProtocolType type, const std::string &ip, int port) {
+//==============================================================================
+
+NetworkConnection::NetworkConnection(ProtocolType type, const std::string &ip, const uint16_t &port, const uint16_t &timeout, const uint16_t &retries) {
     if (type == ProtocolType::TCP) {
-        protocolPtr = std::make_unique<TcpProtocol>(ip, port);
+        protocolPtr = std::make_unique<TcpProtocol>(ip, port, timeout, retries);
     } else if (type == ProtocolType::UDP) {
-        protocolPtr = std::make_unique<UdpProtocol>(ip, port);
+        protocolPtr = std::make_unique<UdpProtocol>(ip, port, timeout, retries);
     }
 }
 void NetworkConnection::sendData(const Mail &mail) {

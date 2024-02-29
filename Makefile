@@ -15,11 +15,11 @@ main: main.cpp
 # -u for UDP
 start_server:
 	@echo "Starting server on port 8080..."
-	@nc -l 127.0.0.1 8080 &
+	@nc -l -u 127.0.0.1 8080 &
 
 # Run the main program to send a message
 send_message: main
-	@./bin/main -t tcp -p 8080
+	@./bin/main -t udp -s 127.0.0.1 -p 8080
 
 run:
 	$(CXX) $(CXXFLAGS) -I$(HEADERS) main.cpp $(SRC_FILES) -o ./bin/main

@@ -32,7 +32,6 @@ void ArgumentParser::parse() {
             typeSet = true;
             break;
         case 's':
-            std::cout << optarg << std::endl;
             ip = optarg;
             ipSet = true;
             break;

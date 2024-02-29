@@ -35,9 +35,13 @@
 class NetworkProtocol {
   protected:
     std::string ip;
-    int port;
+    uint16_t port;
     int sockfd; // Socket file descriptor
     struct sockaddr_in server_addr;
+
+    // only for UDP
+    uint16_t timeout = 0;
+    uint16_t retries = 0;
 
   public:
     virtual void sendData(const Mail &mail) = 0;
@@ -55,7 +59,7 @@ class TcpProtocol : public NetworkProtocol {
     bool connectToServer();
 
   public:
-    TcpProtocol(const std::string &ip, const int &port);
+    TcpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
     ~TcpProtocol();
     bool openConnection() override;
     bool closeConnection() override;
@@ -72,7 +76,7 @@ class UdpProtocol : public NetworkProtocol {
     bool sendTo(const char *buffer, int size);
 
   public:
-    UdpProtocol(const std::string &ip, const int &port);
+    UdpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
     ~UdpProtocol();
     bool openConnection() override;
     bool closeConnection() override;
@@ -87,7 +91,7 @@ class NetworkConnection {
     std::unique_ptr<NetworkProtocol> protocolPtr;
 
   public:
-    NetworkConnection(ProtocolType type, const std::string &ip, int port);
+    NetworkConnection(ProtocolType type, const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
     void sendData(const Mail &mail);
     Mail receiveData();
     bool openConnection();

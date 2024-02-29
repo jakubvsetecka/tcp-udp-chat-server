@@ -5,10 +5,7 @@ int main(int argc, char **argv) {
 
     ArgumentParser args(argc, argv);
 
-    args.print();
-
-    ProtocolType type = ProtocolType::TCP;
-    NetworkConnection connection(type, "127.0.0.1", 8080);
+    NetworkConnection connection(args.type, args.ip, args.port, args.timeout, args.retries);
     connection.openConnection();
 
     Mail mail;
