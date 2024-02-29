@@ -9,6 +9,7 @@
 #include <cstring>     // For memset
 #include <iostream>
 #include <netinet/in.h> // For sockaddr_in
+#include <sys/epoll.h>
 #include <sys/socket.h> // For socket functions
 
 #include "net-utils.h"
@@ -74,6 +75,9 @@ class UdpProtocol : public NetworkProtocol {
     bool createSocket();
     bool connectToServer();
     bool sendTo(const char *buffer, int size);
+    Mail receiveFrom();
+
+    uint16_t messageID = 0;
 
   public:
     UdpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
@@ -83,7 +87,7 @@ class UdpProtocol : public NetworkProtocol {
     void sendData(const Mail &mail) override;
     Mail receiveData() override;
 };
-
+// TODO: implemnt dynamic port allocation
 //==================================NetworkConnection============================================
 
 class NetworkConnection {

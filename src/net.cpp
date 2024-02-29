@@ -146,8 +146,75 @@ bool UdpProtocol::closeConnection() {
     return true;
 }
 
+Mail UdpProtocol::receiveFrom() {
+    Mail mail;
+    char buffer[1024] = {0};
+    int bytes_received = recv(sockfd, buffer, 1024, 0);
+    if (bytes_received < 0) {
+        std::cerr << "Failed to receive data" << std::endl;
+        mail.type = -1;
+        return mail;
+    }
+    mail.args.push_back(std::string(buffer));
+    return mail;
+}
+
 void UdpProtocol::sendData(const Mail &mail) {
-    sendTo(mail.args[0].c_str(), mail.args[0].size());
+
+    // implement retries and timeout
+
+    struct epoll_event ev, events[10];
+
+    int epollfd = epoll_create1(0);
+    if (epollfd == -1) {
+        perror("epoll_create1");
+        exit(EXIT_FAILURE);
+    }
+
+    ev.events = EPOLLIN;
+    ev.data.fd = sockfd;
+    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &ev) == -1) {
+        perror("epoll_ctl: sockfd");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < retries + 1; i++) {
+
+        sendTo(mail.args[0].c_str(), mail.args[0].size());
+
+        bool waiting = true;
+        while (waiting) {
+            // start timer
+            int nfds = epoll_wait(epollfd, events, 10, timeout);
+            // get time
+            std::cout << "nfds: " << nfds << std::endl;
+
+            switch (nfds) {
+            case -1:
+                perror("epoll_wait");
+                exit(EXIT_FAILURE);
+            case 0:
+                std::cerr << "Timeout" << std::endl;
+                waiting = false;
+                break;
+            default:
+                std::cout << "Data received" << std::endl;
+                // is it the right data?
+                // YES: return
+                // NO: continue, set new timer
+                if (events[0].data.fd == sockfd) {
+                    // receive data
+                    Mail mail = receiveFrom();
+                    // check if it's the right data
+                    if (mail.type == 1) { // TODO: == 1
+                        return;
+                    } else {
+                        std::cerr << "Received wrong data" << std::endl;
+                    }
+                }
+            }
+        }
+    }
 }
 
 Mail UdpProtocol::receiveData() {
