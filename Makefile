@@ -19,7 +19,7 @@ start_server:
 
 # Run the main program to send a message
 send_message: main
-	@./bin/main
+	@./bin/main -t tcp -p 8080
 
 run:
 	$(CXX) $(CXXFLAGS) -I$(HEADERS) main.cpp $(SRC_FILES) -o ./bin/main

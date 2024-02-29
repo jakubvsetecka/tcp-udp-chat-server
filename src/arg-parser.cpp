@@ -19,7 +19,7 @@ void ArgumentParser::print() {
 }
 
 void ArgumentParser::parse() {
-    while ((opt = getopt(argc, argv, "t:s:pdrh")) != -1) {
+    while ((opt = getopt(argc, argv, "t:s:p:d:r:h")) != -1) {
         switch (opt) {
         case 't':
             if (strcmp(optarg, "tcp") == 0) {
@@ -32,11 +32,12 @@ void ArgumentParser::parse() {
             typeSet = true;
             break;
         case 's':
+            std::cout << optarg << std::endl;
             ip = optarg;
             ipSet = true;
             break;
         case 'p':
-            port = atoi(optarg);
+            port = std::stoi(optarg);
             break;
         case 'd':
             timeout = atoi(optarg);
