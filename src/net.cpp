@@ -146,7 +146,16 @@ bool UdpProtocol::closeConnection() {
     return true;
 }
 
-Mail UdpProtocol::receiveFrom() {
+void UdpProtocol::sendConfirm(uint16_t seq) {
+    Mail mail;
+    mail.type = 1; // TODO
+    mail.args.push_back(std::to_string(seq));
+    sendTo(mail.args[0].c_str(), mail.args[0].size());
+}
+
+// checks if the received data is the right confirm
+// if not, pipes the data to the spam_mail pipe and send confirm to the server
+bool UdpProtocol::getConfirm() {
     Mail mail;
 
     struct sockaddr_in server_addr; // Ensure this is defined somewhere accessible
@@ -159,14 +168,14 @@ Mail UdpProtocol::receiveFrom() {
 
     std::cout << "Received " << bytes_received << " bytes" << std::endl;
 
-    if (bytes_received < 0) {
+    if (bytes_received < 3) {
         std::cerr << "Failed to receive data" << std::endl;
         mail.type = -1; // Consider using a named constant or enum for error codes
         std::cerr << "Failed to receive data, errno: " << errno << std::endl;
     } else {
         mail.args.push_back(std::string(buffer, bytes_received)); // Use bytes_received to include all data
     }
-    return mail;
+    return true;
 }
 
 void UdpProtocol::sendData(const Mail &mail) {
@@ -219,7 +228,7 @@ void UdpProtocol::sendData(const Mail &mail) {
                 // NO: continue, set new timer
                 if (events[0].data.fd == sockfd) {
                     // receive data
-                    Mail mail = receiveFrom();
+                    bool delete_me_daddy = getConfirm();
                     // check if it's the right data
                     if (mail.type == 1) { // TODO: == 1
                         return;

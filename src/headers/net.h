@@ -76,7 +76,8 @@ class UdpProtocol : public NetworkProtocol {
     bool createSocket();
     bool connectToServer();
     bool sendTo(const char *buffer, int size);
-    Mail receiveFrom();
+    bool getConfirm();
+    void sendConfirm(uint16_t seq);
 
     uint16_t messageID = 0;
 
