@@ -25,12 +25,12 @@ class FSM {
             case START:
                 mail = mailbox.waitMail();
                 switch (mail.type) {
-                case MailType::AUTH:
+                case Mail::MessageType::AUTH:
                     mailbox.sendMail(mail);
                     state = AUTH;
                     break;
                 default:
-                    mail = mail.writeMail(MailType::ERR);
+                    mail = mailbox.writeMail(Mail::MessageType::ERR);
                     mailbox.sendMail(mail);
                     state = ERROR;
                     break;
@@ -39,26 +39,26 @@ class FSM {
             case AUTH:
                 mail = mailbox.waitMail();
                 switch (mail.type) {
-                case MailType::REPLY:
+                case Mail::MessageType::REPLY:
                     state = OPEN;
                     break;
-                case MailType::NOTREPLY:
+                case Mail::MessageType::NOT_REPLY:
                     std::cout << "Authentication failed" << std::endl;
                     std::cout << "Enter username: ";
                     mail = mailbox.waitMail();
-                    if (mail.type == MailType::AUTH) {
+                    if (mail.type == Mail::MessageType::AUTH) {
                         mailbox.sendMail(mail);
                     } else {
                         state = ERROR;
                     }
                     break;
-                case MailType::ERR:
-                    mail = mail.writeMail(MailType::ERR);
+                case Mail::MessageType::ERR:
+                    mail = mailbox.writeMail(Mail::MessageType::ERR);
                     mailbox.sendMail(mail);
                     state = END;
                     break;
                 default:
-                    mail = mail.writeMail(MailType::ERR);
+                    mail = mailbox.writeMail(Mail::MessageType::ERR);
                     mailbox.sendMail(mail);
                     state = ERROR;
                     break;
@@ -67,32 +67,39 @@ class FSM {
             case OPEN:
                 mail = mailbox.waitMail();
                 switch (mail.type) {
-                case MailType::MSG:
-                    std::cout << mail.args[0] << std::endl;
+                case Mail::MessageType::SRV_MSG:
+                    const auto &msg = std::get<Mail::TextMessage>(mail.data);
+                    std::cout << "DisplayName: " << msg.DisplayName << ", MessageContent: " << msg.MessageContent << std::endl;
                     break;
-                case MailType::REPLY:
+                case Mail::MessageType::USR_MSG:
+                    mailbox.sendMail(mail);
+                    break;
+                case Mail::MessageType::REPLY:
                     state = OPEN;
                     break;
-                case MailType::NOTREPLY:
+                case Mail::MessageType::NOT_REPLY:
                     state = OPEN;
                     break;
-                case MailType::ERR:
-                    mail = mail.writeMail(MailType::ERR);
+                case Mail::MessageType::ERR:
+                    mail = mailbox.writeMail(Mail::MessageType::ERR);
                     mailbox.sendMail(mail);
                     state = END;
                     break;
-                case MailType::BYE:
+                case Mail::MessageType::BYE:
                     state = END;
                     break;
+                case Mail::MessageType::JOIN:
+                    mailbox.sendMail(mail);
+                    break;
                 default:
-                    mail = mail.writeMail(MailType::ERR);
+                    mail = mailbox.writeMail(Mail::MessageType::ERR);
                     mailbox.sendMail(mail);
                     state = ERROR;
                     break;
                 }
                 break;
             case ERROR:
-                mail = mail.writeMail(MailType::BYE);
+                mail = mailbox.writeMail(Mail::MessageType::BYE);
                 mailbox.sendMail(mail);
                 state = END;
                 break;
