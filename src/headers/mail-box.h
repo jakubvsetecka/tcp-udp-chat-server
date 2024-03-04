@@ -3,6 +3,7 @@
 
 #include "net-utils.h"
 #include "pipes.h"
+#include "utils.h"
 #include <condition_variable>
 #include <iostream>
 #include <mutex>
@@ -31,7 +32,7 @@ class Mail {
     };
 
     struct JoinMessage {
-        int ChannelID;
+        int ChannelID = 0;
         std::string DisplayName;
     };
 
@@ -132,11 +133,14 @@ class MailBox {
         std::string command;
         iss >> command;
 
+        printBlue(std::string("Command: ") + command);
+
         Mail mail;
 
         if (command == "/auth") {
             Mail::AuthMessage authMsg;
             iss >> authMsg.Username >> authMsg.Secret >> authMsg.DisplayName;
+            printYellow(std::string("Auth: ") + authMsg.Username + ", " + authMsg.Secret + ", " + authMsg.DisplayName);
             mail.type = Mail::MessageType::AUTH;
             mail.data = authMsg;
         } else if (command == "/join") {
@@ -145,8 +149,16 @@ class MailBox {
             // Assuming DisplayName needs to be set for JOIN message as well
             // If not, remove the following line
             iss >> joinMsg.DisplayName;
+            printYellow(std::string("Join: ") + std::to_string(joinMsg.ChannelID) + ", " + joinMsg.DisplayName);
             mail.type = Mail::MessageType::JOIN;
             mail.data = joinMsg;
+        } else if (command == "/rename") {
+            std::string newDisplayName;
+            iss >> newDisplayName;
+            printYellow(std::string("Rename: ") + newDisplayName);
+            displayName = newDisplayName;
+        } else if (command == "/help") {
+            printYellow("Help");
         } else {
             // Handle invalid command or other message types
         }
