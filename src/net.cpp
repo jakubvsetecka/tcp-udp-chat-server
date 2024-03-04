@@ -1,4 +1,5 @@
 #include "net.h"
+#include "mail-box.h"
 
 bool TcpProtocol::createSocket() {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -58,10 +59,10 @@ bool TcpProtocol::closeConnection() {
 }
 
 void TcpProtocol::sendData(const Mail &mail) {
-    int bytes_to_send = send(sockfd, mail.args[0].c_str(), mail.args[0].size(), 0);
-    if (bytes_to_send < 0) {
-        std::cerr << "Failed to send data" << std::endl;
-    }
+    // int bytes_to_send = send(sockfd, mail.data, mail.args[0].size(), 0);
+    // if (bytes_to_send < 0) {
+    //     std::cerr << "Failed to send data" << std::endl;
+    // }
 }
 
 Mail TcpProtocol::receiveData() {
@@ -70,10 +71,10 @@ Mail TcpProtocol::receiveData() {
     int bytes_received = recv(sockfd, buffer, 1024, 0);
     if (bytes_received < 0) {
         std::cerr << "Failed to receive data" << std::endl;
-        mail.type = -1;
+        // mail.type = -1;
         return mail;
     }
-    mail.args.push_back(std::string(buffer));
+    // mail.args.push_back(std::string(buffer));
     return mail;
 }
 
@@ -148,9 +149,9 @@ bool UdpProtocol::closeConnection() {
 
 void UdpProtocol::sendConfirm(uint16_t seq) {
     Mail mail;
-    mail.type = 1; // TODO
-    mail.args.push_back(std::to_string(seq));
-    sendTo(mail.args[0].c_str(), mail.args[0].size());
+    // mail.type = 1; // TODO
+    // mail.args.push_back(std::to_string(seq));
+    // sendTo(mail.args[0].c_str(), mail.args[0].size());
 }
 
 // checks if the received data is the right confirm
@@ -170,10 +171,10 @@ bool UdpProtocol::getConfirm() {
 
     if (bytes_received < 3) {
         std::cerr << "Failed to receive data" << std::endl;
-        mail.type = -1; // Consider using a named constant or enum for error codes
+        // mail.type = -1; // Consider using a named constant or enum for error codes
         std::cerr << "Failed to receive data, errno: " << errno << std::endl;
     } else {
-        mail.args.push_back(std::string(buffer, bytes_received)); // Use bytes_received to include all data
+        // mail.args.push_back(std::string(buffer, bytes_received)); // Use bytes_received to include all data
     }
     return true;
 }
@@ -197,7 +198,7 @@ void UdpProtocol::sendData(const Mail &mail) {
 
     for (int i = 0; i < retries + 1; i++) {
 
-        sendTo(mail.args[0].c_str(), mail.args[0].size());
+        // sendTo(mail.args[0].c_str(), mail.args[0].size());
 
         bool waiting = true;
         double milisec_count = this->timeout;
@@ -230,12 +231,12 @@ void UdpProtocol::sendData(const Mail &mail) {
                     // receive data
                     bool delete_me_daddy = getConfirm();
                     // check if it's the right data
-                    if (mail.type == 1) { // TODO: == 1
-                        return;
-                    } else {
-                        std::cerr << "Received wrong data" << std::endl;
-                        milisec_count -= duration; // subtract time passed
-                    }
+                    // if (mail.type == 1) { // TODO: == 1
+                    //    return;
+                    //} else {
+                    //    std::cerr << "Received wrong data" << std::endl;
+                    //    milisec_count -= duration; // subtract time passed
+                    //}
                 }
             }
         }
@@ -248,10 +249,10 @@ Mail UdpProtocol::receiveData() {
     int bytes_received = recv(sockfd, buffer, 1024, 0);
     if (bytes_received < 0) {
         std::cerr << "Failed to receive data" << std::endl;
-        mail.type = -1;
+        // mail.type = -1;
         return mail;
     }
-    mail.args.push_back(std::string(buffer));
+    // mail.args.push_back(std::string(buffer));
     return mail;
 }
 
@@ -274,7 +275,7 @@ Mail NetworkConnection::receiveData() {
         return protocolPtr->receiveData();
     } else {
         Mail mail;
-        mail.type = -1;
+        // mail.type = -1;
         return mail;
     }
 }
