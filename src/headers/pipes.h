@@ -8,14 +8,21 @@
 #include <unistd.h>
 #include <vector>
 
+enum fdType {
+    StdinPipe,
+    SocketPipe,
+    ToSendPipe,
+    Unknown
+};
+
 class Pipe {
-    std::string name;
+    fdType type;
     int read_fd = -1;
     int write_fd = -1;
 
   public:
-    Pipe(const std::string &name = "default")
-        : name(name) {
+    Pipe(const fdType &type = fdType::Unknown)
+        : type(type) {
         int fd[2];
         if (::pipe(fd) < 0) { // Use the global namespace (::) to call the POSIX pipe
             std::cerr << "Failed to create pipe\n";
@@ -43,34 +50,34 @@ class Pipe {
         if (write_fd != -1) {
             ssize_t bytes_written = ::write(write_fd, data.c_str(), data.size());
             if (bytes_written == -1) {
-                std::cerr << "Failed to write to pipe: " << name << std::endl;
+                std::cerr << "Failed to write to pipe: " << type << std::endl;
             }
         }
     }
 
     int getWriteFd() const { return write_fd; }
     int getReadFd() const { return read_fd; }
-    std::string getName() const { return name; }
+    fdType getType() const { return type; }
 };
 
 class PipeManager {
-    std::map<std::string, Pipe> pipes;
+    std::map<fdType, Pipe> pipes;
 
   public:
-    void addPipe(const std::string &name, bool readNonBlocking = false) {
-        Pipe newPipe(name);
+    void addPipe(fdType type, bool readNonBlocking = false) {
+        Pipe newPipe; // Assuming Pipe constructor can be default or modified
         if (readNonBlocking) {
             newPipe.makeNonBlocking();
         }
-        pipes[name] = std::move(newPipe);
+        pipes[type] = std::move(newPipe);
     }
 
-    void writeToPipe(const std::string &name, const std::string &data) {
-        auto it = pipes.find(name);
+    void writeToPipe(const fdType &type, const std::string &data) {
+        auto it = pipes.find(type);
         if (it != pipes.end()) {
             it->second.write(data);
         } else {
-            std::cerr << "Pipe not found: " << name << std::endl;
+            std::cerr << "Pipe not found: " << type << std::endl;
         }
     }
 };

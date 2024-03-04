@@ -1,7 +1,7 @@
 #include "net.h"
 #include "mail-box.h"
 
-bool TcpProtocol::createSocket() {
+bool TcpProtocol::createSocket(int &sockfd) {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         std::cerr << "Failed to create socket" << std::endl;
@@ -37,8 +37,8 @@ TcpProtocol::~TcpProtocol() {
         close(sockfd);
     }
 }
-bool TcpProtocol::openConnection() {
-    if (!createSocket()) {
+bool TcpProtocol::openConnection(int &sockfd) {
+    if (!createSocket(sockfd)) {
         return false;
     }
     if (!connectToServer()) {
@@ -80,12 +80,27 @@ Mail TcpProtocol::receiveData() {
 
 //==============================================================================
 
-bool UdpProtocol::createSocket() {
+bool UdpProtocol::createSocket(int &sockfd) {
+    // Create a socket first if not already created
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         std::cerr << "Failed to create socket" << std::endl;
         return false;
     }
+
+    struct sockaddr_in client_addr;
+    memset(&client_addr, 0, sizeof(client_addr));
+
+    client_addr.sin_family = AF_INET;
+    client_addr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on any interface
+    client_addr.sin_port = htons(12345);             // Convert port number to network byte order
+
+    // Bind the socket
+    if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
+        std::cerr << "Bind failed" << std::endl;
+        return false;
+    }
+
     return true;
 }
 
@@ -126,8 +141,8 @@ UdpProtocol::~UdpProtocol() {
         close(sockfd); // Ensure the socket is closed on destruction
     }
 }
-bool UdpProtocol::openConnection() {
-    if (!createSocket()) {
+bool UdpProtocol::openConnection(int &sockfd) {
+    if (!createSocket(sockfd)) {
         return false;
     }
     if (!connectToServer()) {
@@ -147,112 +162,28 @@ bool UdpProtocol::closeConnection() {
     return true;
 }
 
-void UdpProtocol::sendConfirm(uint16_t seq) {
-    Mail mail;
-    // mail.type = 1; // TODO
-    // mail.args.push_back(std::to_string(seq));
-    // sendTo(mail.args[0].c_str(), mail.args[0].size());
-}
-
-// checks if the received data is the right confirm
-// if not, pipes the data to the spam_mail pipe and send confirm to the server
-bool UdpProtocol::getConfirm() {
-    Mail mail;
-
-    struct sockaddr_in server_addr; // Ensure this is defined somewhere accessible
-    struct sockaddr *addr = (struct sockaddr *)&server_addr;
-    socklen_t addrlen = sizeof(server_addr);
-    int flags = 0;
-
-    char buffer[1024] = {0};
-    int bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), flags, addr, &addrlen);
-
-    std::cout << "Received " << bytes_received << " bytes" << std::endl;
-
-    if (bytes_received < 3) {
-        std::cerr << "Failed to receive data" << std::endl;
-        // mail.type = -1; // Consider using a named constant or enum for error codes
-        std::cerr << "Failed to receive data, errno: " << errno << std::endl;
-    } else {
-        // mail.args.push_back(std::string(buffer, bytes_received)); // Use bytes_received to include all data
-    }
-    return true;
-}
-
 void UdpProtocol::sendData(const Mail &mail) {
-
-    struct epoll_event ev, events[10];
-
-    int epollfd = epoll_create1(0);
-    if (epollfd == -1) {
-        perror("epoll_create1");
-        exit(EXIT_FAILURE);
-    }
-
-    ev.events = EPOLLIN;
-    ev.data.fd = sockfd;
-    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &ev) == -1) {
-        perror("epoll_ctl: sockfd");
-        exit(EXIT_FAILURE);
-    }
-
-    for (int i = 0; i < retries + 1; i++) {
-
-        // sendTo(mail.args[0].c_str(), mail.args[0].size());
-
-        bool waiting = true;
-        double milisec_count = this->timeout;
-
-        while (waiting) {
-            // start timer
-            StopWatch timer;
-            int nfds = epoll_wait(epollfd, events, 10, milisec_count);
-            // get time
-            double duration = timer.duration();
-
-            std::cout << "Duration: " << duration << std::endl;
-            std::cout << "milisec_count: " << milisec_count << std::endl;
-            std::cout << "nfds: " << nfds << std::endl;
-
-            switch (nfds) {
-            case -1:
-                perror("epoll_wait");
-                exit(EXIT_FAILURE);
-            case 0:
-                std::cerr << "Timeout" << std::endl;
-                waiting = false;
-                break;
-            default:
-                std::cout << "Data received" << std::endl;
-                // is it the right data?
-                // YES: return
-                // NO: continue, set new timer
-                if (events[0].data.fd == sockfd) {
-                    // receive data
-                    bool delete_me_daddy = getConfirm();
-                    // check if it's the right data
-                    // if (mail.type == 1) { // TODO: == 1
-                    //    return;
-                    //} else {
-                    //    std::cerr << "Received wrong data" << std::endl;
-                    //    milisec_count -= duration; // subtract time passed
-                    //}
-                }
-            }
-        }
-    }
 }
 
 Mail UdpProtocol::receiveData() {
+    printBlue("Receiving data");
     Mail mail;
     char buffer[1024] = {0};
     int bytes_received = recv(sockfd, buffer, 1024, 0);
     if (bytes_received < 0) {
-        std::cerr << "Failed to receive data" << std::endl;
-        // mail.type = -1;
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // No data available right now, not an error in non-blocking mode
+            std::cerr << "No data available to read" << std::endl;
+        } else {
+            std::cerr << "Failed to receive data: " << strerror(errno) << std::endl;
+        }
+        return mail;
+    } else if (bytes_received == 0) {
+        // Handle the case where the remote side has closed the connection
+        std::cerr << "Connection closed by peer" << std::endl;
         return mail;
     }
-    // mail.args.push_back(std::string(buffer));
+    std::cout << "Received data: " << buffer << std::endl;
     return mail;
 }
 
@@ -279,9 +210,9 @@ Mail NetworkConnection::receiveData() {
         return mail;
     }
 }
-bool NetworkConnection::openConnection() {
+bool NetworkConnection::openConnection(int &sockfd) {
     if (protocolPtr) {
-        return protocolPtr->openConnection();
+        return protocolPtr->openConnection(sockfd);
     } else {
         return false;
     }

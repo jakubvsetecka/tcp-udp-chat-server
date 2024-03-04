@@ -49,7 +49,7 @@ class NetworkProtocol {
   public:
     virtual void sendData(const Mail &mail) = 0;
     virtual Mail receiveData() = 0;
-    virtual bool openConnection() = 0;
+    virtual bool openConnection(int &sockfd) = 0;
     virtual bool closeConnection() = 0;
     virtual ~NetworkProtocol() {}
 };
@@ -58,13 +58,13 @@ class NetworkProtocol {
 
 class TcpProtocol : public NetworkProtocol {
   private:
-    bool createSocket();
+    bool createSocket(int &sockfd);
     bool connectToServer();
 
   public:
     TcpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
     ~TcpProtocol();
-    bool openConnection() override;
+    bool openConnection(int &sockfd) override;
     bool closeConnection() override;
     void sendData(const Mail &mail) override;
     Mail receiveData() override;
@@ -74,7 +74,7 @@ class TcpProtocol : public NetworkProtocol {
 
 class UdpProtocol : public NetworkProtocol {
   private:
-    bool createSocket();
+    bool createSocket(int &sockfd);
     bool connectToServer();
     bool sendTo(const char *buffer, int size);
     bool getConfirm();
@@ -85,7 +85,7 @@ class UdpProtocol : public NetworkProtocol {
   public:
     UdpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
     ~UdpProtocol();
-    bool openConnection() override;
+    bool openConnection(int &sockfd) override;
     bool closeConnection() override;
     void sendData(const Mail &mail) override;
     Mail receiveData() override;
@@ -101,7 +101,7 @@ class NetworkConnection {
     NetworkConnection(ProtocolType type, const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
     void sendData(const Mail &mail);
     Mail receiveData();
-    bool openConnection();
+    bool openConnection(int &sockfd);
     bool closeConnection();
     void setProtocol(NetworkProtocol *p);
 };

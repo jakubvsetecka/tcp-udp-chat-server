@@ -2,6 +2,7 @@
 #define LISTENERS_H
 
 #include "mail-box.h"
+#include "net.h"
 #include "pipes.h"
 #include <bits/algorithmfwd.h>
 #include <string>
@@ -10,13 +11,6 @@
 #include <unordered_map>
 #include <vector>
 
-enum fdType {
-    StdinPipe,
-    SocketPipe,
-    ToSendPipe,
-    Unknown
-};
-
 class Listener {
   private:
     std::unordered_map<int, fdType> fdMap;
@@ -24,6 +18,7 @@ class Listener {
     // Assuming MailBox and Mail are defined elsewhere
     MailBox *mailbox;
     Mail mail;
+    NetworkConnection *connection;
 
     void listenStdin(int fd, int efd) {
 
@@ -74,6 +69,7 @@ class Listener {
                 close(efd);
                 return;
             }
+            printGreen("File descriptor: " + std::to_string(fd) + " added to epoll");
         }
     }
 
@@ -102,6 +98,16 @@ class Listener {
                     case StdinPipe:
                         listenStdin(activeFd, efd);
                         break;
+                    case SocketPipe:
+                        std::cout << "SocketPipe" << std::endl;
+                        mail = connection->receiveData();
+                        std::cout << "Received mail" << std::endl;
+                        mailbox->addMail(mail);
+                        std::cout << "Mail added to mailbox" << std::endl;
+                        break;
+                    case ToSendPipe:
+                        // ... other cases ...
+                        break;
                     case Unknown:
                         std::cerr << "Unknown file descriptor type" << std::endl;
                         break;
@@ -116,8 +122,8 @@ class Listener {
     }
 
   public:
-    Listener(MailBox *mailbox)
-        : mailbox(mailbox) {
+    Listener(MailBox *mailbox, NetworkConnection *connection)
+        : mailbox(mailbox), connection(connection) {
         listenerThread = std::thread([this] { this->runListener(); });
     }
 
@@ -146,25 +152,29 @@ class Listener {
 class StdinListener {
   private:
     std::thread listenerThread;
-    Pipe *pipe; // Use a pointer to Pipe to avoid copying and ensure thread safety
+    Pipe *pipe;
+    std::atomic<bool> keepRunning;
 
     static void runListener(StdinListener *listener) {
         std::string line;
-        while (std::getline(std::cin, line)) {  // Read a line from stdin
-            listener->pipe->write(line + "\n"); // Write it to the pipe directly
+        while (listener->keepRunning.load()) {
+            if (std::getline(std::cin, line)) {
+                listener->pipe->write(line + "\n");
+            } else {
+                break; // Exit if std::cin is closed or in a bad state
+            }
         }
     }
 
   public:
     StdinListener(Pipe *pipe)
-        : pipe(pipe) {
-        // Launch the listening thread, safely passing 'this'
+        : pipe(pipe), keepRunning(true) {
         listenerThread = std::thread(runListener, this);
     }
 
     ~StdinListener() {
-        // Ensure the listener thread completes before destroying the object.
         if (listenerThread.joinable()) {
+            keepRunning.store(false);
             listenerThread.join();
         }
         std::cout << "\033[1;31mStdInListener destroyed\033[0m" << std::endl;
