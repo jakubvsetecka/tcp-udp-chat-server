@@ -12,6 +12,8 @@
 
 enum fdType {
     StdinPipe,
+    SocketPipe,
+    ToSendPipe,
     Unknown
 };
 
@@ -51,7 +53,8 @@ class Listener {
                 if (!line.empty()) {
                     std::cout << "Line: " << line << std::endl;
                     mail = mailbox->writeMail(line);
-                    mail.printMail();
+                    mailbox->addMail(mail);
+                    printGreen("Mail added to mailbox");
                     line.clear();
                 }
             } else {
@@ -99,16 +102,22 @@ class Listener {
                     case StdinPipe:
                         listenStdin(activeFd, efd);
                         break;
+                    case Unknown:
+                        std::cerr << "Unknown file descriptor type" << std::endl;
+                        break;
                         // ... other cases ...
                     }
                 }
             }
+
+            // Send or expect CONFIRM based on Flags
         }
         close(efd);
     }
 
   public:
-    void start() {
+    Listener(MailBox *mailbox)
+        : mailbox(mailbox) {
         listenerThread = std::thread([this] { this->runListener(); });
     }
 

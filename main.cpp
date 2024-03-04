@@ -12,10 +12,12 @@ int main(int argc, char **argv) {
     // Step 2: Get file descriptors from the Pipe object. (For demonstration, we're directly using myPipe here)
     int readFd = myPipe.getReadFd(); // Assuming Pipe class has getReadFd method.
 
+    Pipe ToSendPipe("ToSendPipe");                   // Create a Pipe instance named ToSendPipe
+    MailBox mailbox(ProtocolType::UDP, &ToSendPipe); // Create a MailBox instance
+
     // Instantiate Listener with fds
-    Listener myListener;                 // Instantiate the Listener object
+    Listener myListener(&mailbox);       // Instantiate the Listener object
     myListener.addFd(readFd, StdinPipe); // Assuming Listener class has addFd method.
-    myListener.start();                  // Start the listener thread.
 
     // Step 4: Instantiate StdinListener with the address of myPipe.
     StdinListener myStdinListener(&myPipe);
@@ -23,6 +25,8 @@ int main(int argc, char **argv) {
     // Example interaction: Wait for user to press enter, then exit.
     std::cout << "Press enter to exit..." << std::endl;
     std::cin.get();
+
+    // Step 5: Destroy the StdinListener and Listener objects.
 
     //    ArgumentParser args(argc, argv);
     //
