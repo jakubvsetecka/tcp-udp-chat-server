@@ -12,6 +12,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h> // For socket functions
 
+#include "mail-box.h"
 #include "net-utils.h"
 #include "stopwatch.h"
 

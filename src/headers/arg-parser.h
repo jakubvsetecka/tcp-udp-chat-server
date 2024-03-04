@@ -1,6 +1,7 @@
 #ifndef ARG_PARSER_H
 #define ARG_PARSER_H
 
+#include "mail-box.h"
 #include "net-utils.h"
 #include <cstring>  // Include the missing header
 #include <iostream> // Include the missing header

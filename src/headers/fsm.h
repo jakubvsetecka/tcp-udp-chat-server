@@ -1,3 +1,6 @@
+#ifndef FSM_H
+#define FSM_H
+
 #include "mail-box.h"
 
 class FSM {
@@ -114,3 +117,5 @@ class FSM {
         }
     }
 };
+
+#endif // FSM_H
