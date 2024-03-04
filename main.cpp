@@ -12,11 +12,10 @@ int main(int argc, char **argv) {
     // Step 2: Get file descriptors from the Pipe object. (For demonstration, we're directly using myPipe here)
     int readFd = myPipe.getReadFd(); // Assuming Pipe class has getReadFd method.
 
-    // Create a vector of fds for Listener. We'll listen to the read end of myPipe.
-    std::vector<int> fds{readFd};
-
-    // Step 3: Instantiate Listener with fds.
-    Listener myListener(fds);
+    // Instantiate Listener with fds
+    Listener myListener;                 // Instantiate the Listener object
+    myListener.addFd(readFd, StdinPipe); // Assuming Listener class has addFd method.
+    myListener.start();                  // Start the listener thread.
 
     // Step 4: Instantiate StdinListener with the address of myPipe.
     StdinListener myStdinListener(&myPipe);
