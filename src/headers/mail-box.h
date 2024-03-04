@@ -1,15 +1,15 @@
+#ifndef MAIL_BOX_H
+#define MAIL_BOX_H
+
+#include "net-utils.h"
 #include "pipes.h"
 #include <condition_variable>
 #include <iostream>
 #include <mutex>
 #include <queue>
+#include <sstream>
 #include <string>
 #include <variant>
-
-enum class ProtocolType {
-    TCP,
-    UDP
-};
 
 class Mail {
   public:
@@ -62,6 +62,27 @@ class Mail {
 
     MessageType type;
     MessageData data;
+
+    void printMail() const {
+        std::visit([this](const auto &arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, AuthMessage>) {
+                std::cout << "AUTH: " << arg.Username << ", " << arg.DisplayName << ", " << arg.Secret << std::endl;
+            } else if constexpr (std::is_same_v<T, JoinMessage>) {
+                std::cout << "JOIN: " << arg.ChannelID << ", " << arg.DisplayName << std::endl;
+            } else if constexpr (std::is_same_v<T, ErrorMessage>) {
+                std::cout << "ERR: " << arg.DisplayName << ", " << arg.MessageContent << std::endl;
+            } else if (type == MessageType::BYE) {
+                std::cout << "BYE" << std::endl;
+            } else if constexpr (std::is_same_v<T, TextMessage>) {
+                std::cout << (type == MessageType::SRV_MSG ? "SRV_MSG: " : "USR_MSG: ")
+                          << arg.DisplayName << ", " << arg.MessageContent << std::endl;
+            } else if constexpr (std::is_same_v<T, ReplyMessage>) {
+                std::cout << (arg.IsReply ? "REPLY: " : "NOT_REPLY: ") << arg.MessageContent << std::endl;
+            }
+        },
+                   data);
+    }
 };
 
 class MailBox {
@@ -106,6 +127,32 @@ class MailBox {
         }
     }
 
+    Mail writeMail(std::string line) {
+        std::istringstream iss(line);
+        std::string command;
+        iss >> command;
+
+        Mail mail;
+
+        if (command == "/auth") {
+            Mail::AuthMessage authMsg;
+            iss >> authMsg.Username >> authMsg.Secret >> authMsg.DisplayName;
+            mail.type = Mail::MessageType::AUTH;
+            mail.data = authMsg;
+        } else if (command == "/join") {
+            Mail::JoinMessage joinMsg;
+            iss >> joinMsg.ChannelID;
+            // Assuming DisplayName needs to be set for JOIN message as well
+            // If not, remove the following line
+            iss >> joinMsg.DisplayName;
+            mail.type = Mail::MessageType::JOIN;
+            mail.data = joinMsg;
+        } else {
+            // Handle invalid command or other message types
+        }
+
+        return mail;
+    }
     Mail writeMail(char *buffer); // implementation remains
     Mail writeMail(Mail::MessageType msgType) {
         Mail mail;
@@ -125,3 +172,5 @@ class MailBox {
         return mail;
     }
 };
+
+#endif // MAIL_BOX_H
