@@ -1,6 +1,7 @@
 #ifndef LISTENERS_H
 #define LISTENERS_H
 
+#include "mail-box.h"
 #include "pipes.h"
 #include <string>
 #include <sys/epoll.h>
@@ -11,7 +12,46 @@ class Listener {
   private:
     std::vector<int> fds;
     std::thread listenerThread;
-    static void runListener(Listener *listener) {
+    MailBox *mailbox; // Use a pointer to MailBox to avoid copying and ensure thread safety
+    Mail mail;
+
+    void listenStdin(int fd, int efd) {
+
+        char buf[1024];
+        ssize_t count = read(fd, buf, sizeof(buf) - 1);
+
+        if (count == -1) {
+            if (errno != EAGAIN) {
+                std::cerr << "Read error" << std::endl;
+                close(efd);
+                return;
+            }
+        } else if (count == 0) {
+            std::cout << "Pipe closed" << std::endl;
+            close(efd);
+            return;
+        } else {
+            buf[count] = '\0';
+            std::cout << "Read from pipe: " << buf << std::endl;
+        }
+
+        // Create a Mail for each line read from the pipe
+        // get line from buffer
+        std::string line;
+        for (int i = 0; i < count; i++) {
+            if (buf[i] == '\n') {
+                if (!line.empty()) {
+                    std::cout << "Line: " << line << std::endl;
+                    mail = mailbox->writeMail(line);
+                    line.clear();
+                }
+            } else {
+                line += buf[i];
+            }
+        }
+    }
+
+    void runListener(Listener *listener) {
         int efd = epoll_create1(0);
         if (efd == -1) {
             std::cerr << "Failed to create epoll file descriptor" << std::endl;
@@ -35,22 +75,7 @@ class Listener {
             int n = epoll_wait(efd, events, 10, -1);
             for (int i = 0; i < n; i++) {
                 if (events[i].events & EPOLLIN) {
-                    char buf[1024];
-                    ssize_t count = read(events[i].data.fd, buf, sizeof(buf) - 1);
-                    if (count == -1) {
-                        if (errno != EAGAIN) {
-                            std::cerr << "Read error" << std::endl;
-                            close(efd);
-                            return;
-                        }
-                    } else if (count == 0) {
-                        std::cout << "Pipe closed" << std::endl;
-                        close(efd);
-                        return;
-                    } else {
-                        buf[count] = '\0';
-                        std::cout << "Read from pipe: " << buf << std::endl;
-                    }
+                    listenStdin(events[i].data.fd, efd);
                 }
             }
         }
@@ -62,7 +87,7 @@ class Listener {
     Listener(const std::vector<int> &fds)
         : fds(fds) {
         // Launch the listening thread, safely passing 'this'
-        listenerThread = std::thread(runListener, this);
+        listenerThread = std::thread([this] { this->runListener(this); });
     }
 
     ~Listener() {
