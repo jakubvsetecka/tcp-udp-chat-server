@@ -19,7 +19,7 @@ class Listener {
     Mail mail;
     NetworkConnection *connection;
 
-    void listenStdin(int fd, int efd) {
+    bool listenStdin(int fd, int efd) {
 
         char buf[1024];
         ssize_t count = read(fd, buf, sizeof(buf) - 1);
@@ -28,15 +28,14 @@ class Listener {
             if (errno != EAGAIN) {
                 std::cerr << "Read error" << std::endl;
                 close(efd);
-                return;
+                return false;
             }
         } else if (count == 0) {
             std::cout << "Pipe closed" << std::endl;
             close(efd);
-            return;
+            return false;
         } else {
             buf[count] = '\0';
-            std::cout << "Read from pipe: " << buf << std::endl;
         }
 
         // Create a Mail for each line read from the pipe
@@ -45,16 +44,16 @@ class Listener {
         for (int i = 0; i < count; i++) {
             if (buf[i] == '\n') {
                 if (!line.empty()) {
-                    std::cout << "Line: " << line << std::endl;
                     mailbox->writeMail(line, mail);
                     mailbox->addMail(mail);
-                    printGreen("Mail added to mailbox");
                     line.clear();
                 }
             } else {
                 line += buf[i];
             }
         }
+
+        return true;
     }
 
     void registerFds(const std::unordered_map<int, fdType> &fdMap, int efd) {
@@ -70,6 +69,18 @@ class Listener {
             }
             printGreen("File descriptor: " + std::to_string(fd) + " with name: " + std::to_string(fd_pair.second) + " added to epoll");
         }
+    }
+
+    bool listenSocket(char *buffer, int efd) {
+        if (!connection->receiveData(buffer)) {
+            std::cerr << "Failed to receive data" << std::endl;
+            close(efd);
+            return false;
+        }
+        mailbox->writeMail(buffer, mail); // Pass buffer as a string argument
+        mailbox->addMail(mail);
+
+        return true;
     }
 
     void runListener() {
@@ -99,19 +110,20 @@ class Listener {
 
                     switch (type) {
                     case StdinPipe:
-                        listenStdin(activeFd, efd);
-                        break;
-                    case SocketPipe:
-                        std::cout << "SocketPipe" << std::endl;
-                        if (!connection->receiveData(buffer)) {
-                            std::cerr << "Failed to receive data" << std::endl;
-                            close(efd);
+                        printBlue("StdinPipe");
+                        if (!listenStdin(activeFd, efd)) {
+                            printRed("Failed to listen to stdin\n");
                             return;
                         }
-                        std::cout << "Received mail" << std::endl;
-                        mailbox->writeMail(buffer, mail); // Pass buffer as a string argument
-                        mailbox->addMail(mail);
-                        std::cout << "Mail added to mailbox" << std::endl;
+                        printGreen("Mail added to mailbox\n");
+                        break;
+                    case SocketPipe:
+                        printBlue("SocketPipe");
+                        if (!listenSocket(buffer, efd)) {
+                            printRed("Failed to listen to socket\n");
+                            return;
+                        }
+                        printGreen("Mail added to mailbox\n");
                         break;
                     case ToSendPipe:
                         // ... other cases ...
@@ -135,6 +147,7 @@ class Listener {
     }
 
     ~Listener() {
+
         // Ensure the listener thread completes before destroying the object
         if (listenerThread.joinable()) {
             listenerThread.join();
@@ -146,7 +159,7 @@ class Listener {
         }
 
         // Print a message indicating the Listener is destroyed
-        std::cout << "\033[1;31mListener destroyed\033[0m" << std::endl;
+        printRed("Listener destroyed");
     }
 
     void run() {
