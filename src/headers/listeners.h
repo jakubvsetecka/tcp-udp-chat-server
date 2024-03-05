@@ -44,7 +44,13 @@ class Listener {
         for (int i = 0; i < count; i++) {
             if (buf[i] == '\n') {
                 if (!line.empty()) {
-                    mailbox->writeMail(line, mail);
+
+                    if (!mailbox->writeMail(line, mail)) {
+                        std::cerr << "Failed to write mail" << std::endl;
+                        close(efd);
+                        return false;
+                    }
+
                     mailbox->addMail(mail);
                     line.clear();
                 }

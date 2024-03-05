@@ -23,7 +23,8 @@ class Mail {
         USR_MSG = 0x04,
         REPLY = 0x01,
         NOT_REPLY = 0x01,
-        CONFIRM = 0x00
+        CONFIRM = 0x00,
+        DO_NOT_ADD_TO_QUEUE,
     };
 
     struct ConfirmMessage {
@@ -79,25 +80,28 @@ class Mail {
     MessageData data;
 
     void printMail() const {
-        printBlue("Mail type: " + std::to_string(static_cast<int>(type)));
+        // start printg in magenta color
+        std::cout << "\033[1;35m";
         std::visit([this](const auto &arg) {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, AuthMessage>) {
-                std::cout << "AUTH: " << arg.Username << ", " << arg.DisplayName << ", " << arg.Secret << std::endl;
+            if constexpr (std::is_same_v<T, ConfirmMessage>) {
+                std::cout << "CONFIRM: RefMessageID = " << arg.RefMessageID << std::endl;
+            } else if constexpr (std::is_same_v<T, AuthMessage>) {
+                std::cout << "AUTH: MessageID = " << arg.MessageID << ", Username = " << arg.Username << ", DisplayName = " << arg.DisplayName << ", Secret = " << arg.Secret << std::endl;
             } else if constexpr (std::is_same_v<T, JoinMessage>) {
-                std::cout << "JOIN: " << arg.ChannelID << ", " << arg.DisplayName << std::endl;
+                std::cout << "JOIN: MessageID = " << arg.MessageID << ", ChannelID = " << arg.ChannelID << ", DisplayName = " << arg.DisplayName << std::endl;
             } else if constexpr (std::is_same_v<T, ErrorMessage>) {
-                std::cout << "ERR: " << arg.DisplayName << ", " << arg.MessageContent << std::endl;
-            } else if (type == MessageType::BYE) {
-                std::cout << "BYE" << std::endl;
+                std::cout << "ERR: MessageID = " << arg.MessageID << ", DisplayName = " << arg.DisplayName << ", MessageContent = " << arg.MessageContent << std::endl;
+            } else if constexpr (std::is_same_v<T, ByeMessage>) {
+                std::cout << "BYE: MessageID = " << arg.MessageID << std::endl;
             } else if constexpr (std::is_same_v<T, TextMessage>) {
-                std::cout << (type == MessageType::SRV_MSG ? "SRV_MSG: " : "USR_MSG: ")
-                          << arg.DisplayName << ", " << arg.MessageContent << std::endl;
+                std::cout << "TEXT: MessageID = " << arg.MessageID << ", DisplayName = " << arg.DisplayName << ", MessageContent = " << arg.MessageContent << std::endl;
             } else if constexpr (std::is_same_v<T, ReplyMessage>) {
-                std::cout << (arg.Result ? "REPLY: " : "NOT_REPLY: ") << arg.MessageContent << std::endl;
+                std::cout << "REPLY: MessageID = " << arg.MessageID << ", Result = " << (arg.Result ? "Success" : "Failure") << ", RefMessageID = " << arg.RefMessageID << ", MessageContent = " << arg.MessageContent << std::endl;
             }
         },
                    data);
+        std::cout << "\033[0m"; // reset color
     }
 };
 
@@ -143,6 +147,9 @@ class MailBox {
 
     void addMail(const Mail &mail) {
         {
+            if (mail.type == Mail::MessageType::DO_NOT_ADD_TO_QUEUE) {
+                return;
+            }
             std::lock_guard<std::mutex> lock(mtx);
             incomingMails.push(mail);
         }
@@ -186,12 +193,15 @@ class MailBox {
             std::string newDisplayName;
             iss >> newDisplayName;
             // printYellow(std::string("Rename: ") + newDisplayName);
+            mail.type = Mail::MessageType::DO_NOT_ADD_TO_QUEUE;
             displayName = newDisplayName;
         } else if (command == "/help") {
             // printYellow("Help");
+            mail.type = Mail::MessageType::DO_NOT_ADD_TO_QUEUE;
         } else if (command == "/print") {
             printYellow("Print");
             printMails();
+            mail.type = Mail::MessageType::DO_NOT_ADD_TO_QUEUE;
         } else {
             // Handle invalid command or other message types
         }
@@ -204,10 +214,8 @@ class MailBox {
 
         const char *current = *buffer;
 
-        mail.type = static_cast<Mail::MessageType>(*current);
+        mail.type = static_cast<Mail::MessageType>(static_cast<unsigned char>(*current));
         current++;
-
-        printBlue("Mail type: " + std::to_string(static_cast<int>(mail.type)));
 
         switch (mail.type) {
         case Mail::MessageType::CONFIRM:
