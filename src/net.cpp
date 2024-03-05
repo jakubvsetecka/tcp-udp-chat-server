@@ -65,17 +65,16 @@ void TcpProtocol::sendData(const Mail &mail) {
     // }
 }
 
-Mail TcpProtocol::receiveData() {
+bool TcpProtocol::receiveData(char *buffer) {
     Mail mail;
-    char buffer[1024] = {0};
     int bytes_received = recv(sockfd, buffer, 1024, 0);
     if (bytes_received < 0) {
         std::cerr << "Failed to receive data" << std::endl;
         // mail.type = -1;
-        return mail;
+        return false;
     }
     // mail.args.push_back(std::string(buffer));
-    return mail;
+    return true;
 }
 
 //==============================================================================
@@ -167,10 +166,8 @@ bool UdpProtocol::closeConnection() {
 void UdpProtocol::sendData(const Mail &mail) {
 }
 
-Mail UdpProtocol::receiveData() {
+bool UdpProtocol::receiveData(char *buffer) {
     printBlue("Receiving data");
-    Mail mail;
-    char buffer[1024] = {0};
     int bytes_received = recv(sockfd, buffer, 1024, 0);
     if (bytes_received < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -179,14 +176,14 @@ Mail UdpProtocol::receiveData() {
         } else {
             std::cerr << "Failed to receive data: " << strerror(errno) << std::endl;
         }
-        return mail;
+        return false;
     } else if (bytes_received == 0) {
         // Handle the case where the remote side has closed the connection
         std::cerr << "Connection closed by peer" << std::endl;
-        return mail;
+        return false;
     }
     std::cout << "Received data: " << buffer << std::endl;
-    return mail;
+    return true;
 }
 
 //==============================================================================
@@ -203,13 +200,13 @@ void NetworkConnection::sendData(const Mail &mail) {
         protocolPtr->sendData(mail);
     }
 }
-Mail NetworkConnection::receiveData() {
+bool NetworkConnection::receiveData(char *buffer) {
     if (protocolPtr) {
-        return protocolPtr->receiveData();
+        return protocolPtr->receiveData(buffer);
     } else {
         Mail mail;
         // mail.type = -1;
-        return mail;
+        return true;
     }
 }
 bool NetworkConnection::openConnection() {

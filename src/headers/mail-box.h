@@ -129,14 +129,12 @@ class MailBox {
         }
     }
 
-    Mail writeMail(std::string line) {
+    bool writeMail(std::string line, Mail &mail) {
         std::istringstream iss(line);
         std::string command;
         iss >> command;
 
         // printBlue(std::string("Command: ") + command);
-
-        Mail mail;
 
         if (command == "/auth") {
             Mail::AuthMessage authMsg;
@@ -164,11 +162,10 @@ class MailBox {
             // Handle invalid command or other message types
         }
 
-        return mail;
+        return true;
     }
-    Mail writeMail(char *buffer); // implementation remains
-    Mail writeMail(Mail::MessageType msgType) {
-        Mail mail;
+    bool writeMail(char **buffer, Mail &mail); // implementation remains
+    bool writeMail(Mail::MessageType msgType, Mail &mail) {
         switch (msgType) {
         case Mail::MessageType::ERR:
             mail.type = Mail::MessageType::ERR;
@@ -182,7 +179,7 @@ class MailBox {
             mail.data = Mail::ErrorMessage{displayName, "Invalid message"};
             break;
         }
-        return mail;
+        return true;
     }
 
     void printMails() {

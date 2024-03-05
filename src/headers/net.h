@@ -48,7 +48,7 @@ class NetworkProtocol {
 
   public:
     virtual void sendData(const Mail &mail) = 0;
-    virtual Mail receiveData() = 0;
+    virtual bool receiveData(char *buffer) = 0;
     virtual bool openConnection() = 0;
     virtual bool closeConnection() = 0;
     virtual ~NetworkProtocol() {}
@@ -69,7 +69,7 @@ class TcpProtocol : public NetworkProtocol {
     bool openConnection() override;
     bool closeConnection() override;
     void sendData(const Mail &mail) override;
-    Mail receiveData() override;
+    bool receiveData(char *buffer) override;
 };
 
 //==================================UdpProtocol============================================
@@ -90,7 +90,7 @@ class UdpProtocol : public NetworkProtocol {
     bool openConnection() override;
     bool closeConnection() override;
     void sendData(const Mail &mail) override;
-    Mail receiveData() override;
+    bool receiveData(char *buffer) override;
 };
 // TODO: implemnt dynamic port allocation
 //==================================NetworkConnection============================================
@@ -102,7 +102,7 @@ class NetworkConnection {
   public:
     NetworkConnection(ProtocolType type, const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
     void sendData(const Mail &mail);
-    Mail receiveData();
+    bool receiveData(char *buffer);
     bool openConnection();
     bool closeConnection();
     void setProtocol(NetworkProtocol *p);

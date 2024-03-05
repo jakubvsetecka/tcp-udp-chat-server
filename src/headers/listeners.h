@@ -46,7 +46,7 @@ class Listener {
             if (buf[i] == '\n') {
                 if (!line.empty()) {
                     std::cout << "Line: " << line << std::endl;
-                    mail = mailbox->writeMail(line);
+                    mailbox->writeMail(line, mail);
                     mailbox->addMail(mail);
                     printGreen("Mail added to mailbox");
                     line.clear();
@@ -95,14 +95,21 @@ class Listener {
                 if (it != fdMap.end()) {
                     fdType type = it->second;
 
+                    char buffer[1024] = {0};
+
                     switch (type) {
                     case StdinPipe:
                         listenStdin(activeFd, efd);
                         break;
                     case SocketPipe:
                         std::cout << "SocketPipe" << std::endl;
-                        mail = connection->receiveData();
+                        if (!connection->receiveData(buffer)) {
+                            std::cerr << "Failed to receive data" << std::endl;
+                            close(efd);
+                            return;
+                        }
                         std::cout << "Received mail" << std::endl;
+                        mailbox->writeMail(buffer, mail); // Pass buffer as a string argument
                         mailbox->addMail(mail);
                         std::cout << "Mail added to mailbox" << std::endl;
                         break;
