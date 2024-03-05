@@ -120,7 +120,6 @@ class MailBox {
     uint16_t readUInt16(const char **buffer) {
         uint16_t value = (*(*buffer + 1)) | (**buffer << 8);
         (*buffer) += 2;
-        printRed(std::string("Read uint16: ") + std::to_string(value));
         return value;
     }
 
