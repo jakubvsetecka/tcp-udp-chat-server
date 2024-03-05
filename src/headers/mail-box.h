@@ -15,55 +15,68 @@
 class Mail {
   public:
     enum class MessageType {
-        AUTH,
-        JOIN,
-        ERR,
-        BYE,
-        SRV_MSG,
-        USR_MSG,
-        REPLY,
-        NOT_REPLY
+        AUTH = 0x02,
+        JOIN = 0x03,
+        ERR = 0xFE,
+        BYE = 0xFF,
+        SRV_MSG = 0x04,
+        USR_MSG = 0x04,
+        REPLY = 0x01,
+        NOT_REPLY = 0x01,
+        CONFIRM = 0x00
+    };
+
+    struct ConfirmMessage {
+        int RefMessageID;
     };
 
     struct AuthMessage {
+        int MessageID;
         std::string Username;
         std::string DisplayName;
         std::string Secret;
     };
 
     struct JoinMessage {
+        int MessageID;
         int ChannelID = 0;
         std::string DisplayName;
     };
 
     struct ErrorMessage {
+        int MessageID;
         std::string DisplayName;
         std::string MessageContent;
     };
 
-    // BYE does not need a struct since it has no associated data
+    struct ByeMessage {
+        int MessageID;
+    };
 
     struct TextMessage {
+        int MessageID;
         std::string DisplayName;
         std::string MessageContent;
     };
 
     struct ReplyMessage {
-        bool IsReply; // true for REPLY, false for !REPLY
+        int MessageID;
+        bool Result; // true for REPLY, false for !REPLY
+        int RefMessageID;
         std::string MessageContent;
     };
 
     using MessageData = std::variant<
+        ConfirmMessage,
         AuthMessage,
         JoinMessage,
         ErrorMessage,
-        // No struct needed for BYE
+        ByeMessage,
         TextMessage,
         ReplyMessage>;
 
     MessageType type;
     MessageData data;
-    int sequenceUDPNumber; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
 
     void printMail() const {
         printBlue("Mail type: " + std::to_string(static_cast<int>(type)));
@@ -81,7 +94,7 @@ class Mail {
                 std::cout << (type == MessageType::SRV_MSG ? "SRV_MSG: " : "USR_MSG: ")
                           << arg.DisplayName << ", " << arg.MessageContent << std::endl;
             } else if constexpr (std::is_same_v<T, ReplyMessage>) {
-                std::cout << (arg.IsReply ? "REPLY: " : "NOT_REPLY: ") << arg.MessageContent << std::endl;
+                std::cout << (arg.Result ? "REPLY: " : "NOT_REPLY: ") << arg.MessageContent << std::endl;
             }
         },
                    data);
@@ -98,6 +111,23 @@ class MailBox {
     std::condition_variable cv;
     Pipe *notifyListenerPipe;
     std::string displayName;
+    int sequenceUDPNumber; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
+
+    uint16_t readUInt16(const char **buffer) {
+        uint16_t value = **buffer | (*(*buffer + 1) << 8);
+        (*buffer) += 2;
+        return value;
+    }
+
+    std::string readString(const char **buffer) {
+        std::string result;
+        while (**buffer != 0) {
+            result.push_back(**buffer);
+            (*buffer)++;
+        }
+        (*buffer)++; // Skip the terminating zero byte
+        return result;
+    }
 
   public:
     MailBox(ProtocolType protocolType, Pipe *pipe = nullptr)
@@ -168,19 +198,85 @@ class MailBox {
 
         return true;
     }
-    bool writeMail(char **buffer, Mail &mail); // implementation remains
+
+    bool writeMail(char **buffer, Mail &mail) {
+        printBlue("Writing mail");
+
+        const char *current = *buffer;
+
+        mail.type = static_cast<Mail::MessageType>(*current);
+        current++;
+
+        printBlue("Mail type: " + std::to_string(static_cast<int>(mail.type)));
+
+        switch (mail.type) {
+        case Mail::MessageType::CONFIRM:
+        case Mail::MessageType::BYE:
+            mail.data = Mail::ByeMessage{readUInt16(&current)};
+            break;
+        case Mail::MessageType::ERR: {
+            Mail::ErrorMessage errMsg;
+            errMsg.MessageID = readUInt16(&current);
+            errMsg.DisplayName = readString(&current);
+            errMsg.MessageContent = readString(&current);
+            mail.data = errMsg;
+            break; // Add a break statement to prevent fall-through to the next case
+        }
+        case Mail::MessageType::REPLY: {
+            Mail::ReplyMessage replyMsg;
+            replyMsg.MessageID = readUInt16(&current);
+            replyMsg.Result = *current;
+            current++;
+            replyMsg.MessageContent = readString(&current);
+            mail.data = replyMsg;
+            break;
+        }
+        case Mail::MessageType::AUTH: {
+            Mail::AuthMessage authMsg;
+            authMsg.MessageID = readUInt16(&current);
+            authMsg.Username = readString(&current);
+            authMsg.DisplayName = readString(&current);
+            authMsg.Secret = readString(&current);
+            mail.data = authMsg;
+            break;
+        }
+        case Mail::MessageType::JOIN: {
+            Mail::JoinMessage joinMsg;
+            joinMsg.MessageID = readUInt16(&current);
+            joinMsg.ChannelID = std::stoi(readString(&current));
+            joinMsg.DisplayName = readString(&current);
+            mail.data = joinMsg;
+            break;
+        }
+        case Mail::MessageType::SRV_MSG: {
+            Mail::TextMessage srvMsg;
+            srvMsg.MessageID = readUInt16(&current);
+            srvMsg.DisplayName = readString(&current);
+            srvMsg.MessageContent = readString(&current);
+            mail.data = srvMsg;
+            break;
+        }
+        default:
+            printRed("Invalid message type");
+            return false;
+            break;
+        }
+
+        return true;
+    }
     bool writeMail(Mail::MessageType msgType, Mail &mail) {
         switch (msgType) {
         case Mail::MessageType::ERR:
             mail.type = Mail::MessageType::ERR;
-            mail.data = Mail::ErrorMessage{displayName, "Invalid message"};
+            mail.data = Mail::ErrorMessage{sequenceUDPNumber, displayName, "MessageContent"};
             break;
         case Mail::MessageType::BYE:
             mail.type = Mail::MessageType::BYE;
+            mail.data = Mail::ByeMessage{sequenceUDPNumber};
             break;
         default: // TODO: shouldnt happen
             mail.type = Mail::MessageType::ERR;
-            mail.data = Mail::ErrorMessage{displayName, "Invalid message"};
+            mail.data = Mail::ErrorMessage{sequenceUDPNumber, displayName, "MessageContent"};
             break;
         }
         return true;

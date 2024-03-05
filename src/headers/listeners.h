@@ -77,7 +77,13 @@ class Listener {
             close(efd);
             return false;
         }
-        mailbox->writeMail(buffer, mail); // Pass buffer as a string argument
+
+        if (!mailbox->writeMail(&buffer, mail)) {
+            std::cerr << "Failed to write mail" << std::endl;
+            close(efd);
+            return false;
+        }
+
         mailbox->addMail(mail);
 
         return true;
