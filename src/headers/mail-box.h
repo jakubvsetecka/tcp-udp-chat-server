@@ -19,10 +19,8 @@ class Mail {
         JOIN = 0x03,
         ERR = 0xFE,
         BYE = 0xFF,
-        SRV_MSG = 0x04,
-        USR_MSG = 0x04,
+        MSG = 0x04,
         REPLY = 0x01,
-        NOT_REPLY = 0x01,
         CONFIRM = 0x00,
         DO_NOT_ADD_TO_QUEUE = 0x11,
     };
@@ -55,6 +53,7 @@ class Mail {
     };
 
     struct TextMessage {
+        bool ToSend = false;
         int MessageID;
         std::string DisplayName;
         std::string MessageContent;
@@ -204,7 +203,13 @@ class MailBox {
             printMails();
             mail.type = Mail::MessageType::DO_NOT_ADD_TO_QUEUE;
         } else {
-            // Handle invalid command or other message types
+            mail.type = Mail::MessageType::MSG;
+            Mail::TextMessage textMsg;
+            textMsg.ToSend = true;
+            textMsg.MessageID = sequenceUDPNumber;
+            textMsg.DisplayName = displayName;
+            textMsg.MessageContent = line;
+            mail.data = textMsg;
         }
 
         return true;
@@ -258,7 +263,7 @@ class MailBox {
             mail.data = joinMsg;
             break;
         }
-        case Mail::MessageType::SRV_MSG: {
+        case Mail::MessageType::MSG: {
             Mail::TextMessage srvMsg;
             srvMsg.MessageID = readUInt16(&current);
             srvMsg.DisplayName = readString(&current);

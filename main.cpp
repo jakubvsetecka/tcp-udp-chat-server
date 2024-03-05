@@ -1,4 +1,5 @@
 #include "arg-parser.h"
+#include "fsm.h"
 #include "listeners.h"
 #include "net.h"
 #include "pipes.h"

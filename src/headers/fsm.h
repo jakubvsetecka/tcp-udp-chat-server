@@ -22,7 +22,7 @@ class FSM {
     FSM(State initialState, MailBox &mb)
         : state(initialState), mailbox(mb) {}
 
-    void runFSM() {
+    void run() {
         while (1) {
             switch (state) {
             case START:
@@ -33,7 +33,7 @@ class FSM {
                     state = AUTH;
                     break;
                 default:
-                    mail = mailbox.writeMail(Mail::MessageType::ERR);
+                    mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
                     state = ERROR;
                     break;
@@ -43,25 +43,27 @@ class FSM {
                 mail = mailbox.waitMail();
                 switch (mail.type) {
                 case Mail::MessageType::REPLY:
-                    state = OPEN;
-                    break;
-                case Mail::MessageType::NOT_REPLY:
-                    std::cout << "Authentication failed" << std::endl;
-                    std::cout << "Enter username: ";
-                    mail = mailbox.waitMail();
-                    if (mail.type == Mail::MessageType::AUTH) {
-                        mailbox.sendMail(mail);
+                    if (std::get<Mail::ReplyMessage>(mail.data).Result == true) {
+                        std::cout << "Authentication successful" << std::endl;
+                        state = OPEN;
                     } else {
-                        state = ERROR;
+                        std::cout << "Authentication failed" << std::endl;
+                        std::cout << "Enter username: ";
+                        mail = mailbox.waitMail();
+                        if (mail.type == Mail::MessageType::AUTH) {
+                            mailbox.sendMail(mail);
+                        } else {
+                            state = ERROR;
+                        }
                     }
                     break;
                 case Mail::MessageType::ERR:
-                    mail = mailbox.writeMail(Mail::MessageType::ERR);
+                    mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
                     state = END;
                     break;
                 default:
-                    mail = mailbox.writeMail(Mail::MessageType::ERR);
+                    mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
                     state = ERROR;
                     break;
@@ -70,21 +72,19 @@ class FSM {
             case OPEN:
                 mail = mailbox.waitMail();
                 switch (mail.type) {
-                case Mail::MessageType::SRV_MSG:
-                    const auto &msg = std::get<Mail::TextMessage>(mail.data);
-                    std::cout << "DisplayName: " << msg.DisplayName << ", MessageContent: " << msg.MessageContent << std::endl;
-                    break;
-                case Mail::MessageType::USR_MSG:
-                    mailbox.sendMail(mail);
+                case Mail::MessageType::MSG:
+                    if (std::get<Mail::TextMessage>(mail.data).ToSend == true) {
+                        mailbox.sendMail(mail);
+                    } else {
+                        const auto &msg = std::get<Mail::TextMessage>(mail.data);
+                        std::cout << "DisplayName: " << msg.DisplayName << ", MessageContent: " << msg.MessageContent << std::endl;
+                    }
                     break;
                 case Mail::MessageType::REPLY:
                     state = OPEN;
                     break;
-                case Mail::MessageType::NOT_REPLY:
-                    state = OPEN;
-                    break;
                 case Mail::MessageType::ERR:
-                    mail = mailbox.writeMail(Mail::MessageType::ERR);
+                    mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
                     state = END;
                     break;
@@ -95,14 +95,14 @@ class FSM {
                     mailbox.sendMail(mail);
                     break;
                 default:
-                    mail = mailbox.writeMail(Mail::MessageType::ERR);
+                    mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
                     state = ERROR;
                     break;
                 }
                 break;
             case ERROR:
-                mail = mailbox.writeMail(Mail::MessageType::BYE);
+                mailbox.writeMail(Mail::MessageType::BYE, mail);
                 mailbox.sendMail(mail);
                 state = END;
                 break;
