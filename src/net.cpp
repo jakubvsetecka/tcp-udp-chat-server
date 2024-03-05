@@ -167,7 +167,6 @@ void UdpProtocol::sendData(const Mail &mail) {
 }
 
 bool UdpProtocol::receiveData(char *buffer) {
-    printBlue("Receiving data");
     int bytes_received = recv(sockfd, buffer, 1024, 0);
     if (bytes_received < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -182,7 +181,6 @@ bool UdpProtocol::receiveData(char *buffer) {
         std::cerr << "Connection closed by peer" << std::endl;
         return false;
     }
-    std::cout << "Received data: " << buffer << std::endl;
     return true;
 }
 

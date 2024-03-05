@@ -18,4 +18,4 @@ sock.bind((SRC_IP, SRC_PORT))
 
 while True:
     sock.sendto(MESSAGE, (DEST_IP, DEST_PORT))
-    time.sleep(5)  # wait for 5 seconds
+    #time.sleep(5)  # wait for 5 seconds

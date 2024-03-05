@@ -66,6 +66,7 @@ class Mail {
     int sequenceUDPNumber; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
 
     void printMail() const {
+        printBlue("Mail type: " + std::to_string(static_cast<int>(type)));
         std::visit([this](const auto &arg) {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, AuthMessage>) {
@@ -158,6 +159,9 @@ class MailBox {
             displayName = newDisplayName;
         } else if (command == "/help") {
             // printYellow("Help");
+        } else if (command == "/print") {
+            printYellow("Print");
+            printMails();
         } else {
             // Handle invalid command or other message types
         }

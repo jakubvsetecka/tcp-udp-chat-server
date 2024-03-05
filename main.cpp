@@ -12,8 +12,6 @@ int main(int argc, char **argv) {
     connection.openConnection();
     int sockfd = connection.getFdsocket();
 
-    std::cout << "Socket created: " << sockfd << std::endl;
-
     // Step 1: Create a Pipe object for StdinListener.
     Pipe myPipe(fdType::StdinPipe); // Assume Pipe constructor takes a name or similar identifier.
 
