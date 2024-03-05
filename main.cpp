@@ -9,8 +9,8 @@ int main(int argc, char **argv) {
     ArgumentParser args(argc, argv);
 
     NetworkConnection connection(args.type, args.ip, args.port, args.timeout, args.retries);
-    int sockfd;
-    connection.openConnection(sockfd);
+    connection.openConnection();
+    int sockfd = connection.getFdsocket();
 
     std::cout << "Socket created: " << sockfd << std::endl;
 
@@ -27,6 +27,7 @@ int main(int argc, char **argv) {
     Listener myListener(&mailbox, &connection); // Instantiate the Listener object
     myListener.addFd(readFd, StdinPipe);        // Assuming Listener class has addFd method.
     myListener.addFd(sockfd, SocketPipe);
+    myListener.run(); // Start the listener thread
 
     // Step 4: Instantiate StdinListener with the address of myPipe.
     StdinListener myStdinListener(&myPipe);

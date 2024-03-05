@@ -1,7 +1,7 @@
 #include "net.h"
 #include "mail-box.h"
 
-bool TcpProtocol::createSocket(int &sockfd) {
+bool TcpProtocol::createSocket() {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         std::cerr << "Failed to create socket" << std::endl;
@@ -37,8 +37,8 @@ TcpProtocol::~TcpProtocol() {
         close(sockfd);
     }
 }
-bool TcpProtocol::openConnection(int &sockfd) {
-    if (!createSocket(sockfd)) {
+bool TcpProtocol::openConnection() {
+    if (!createSocket()) {
         return false;
     }
     if (!connectToServer()) {
@@ -80,7 +80,7 @@ Mail TcpProtocol::receiveData() {
 
 //==============================================================================
 
-bool UdpProtocol::createSocket(int &sockfd) {
+bool UdpProtocol::createSocket() {
     // Create a socket first if not already created
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
@@ -100,6 +100,8 @@ bool UdpProtocol::createSocket(int &sockfd) {
         std::cerr << "Bind failed" << std::endl;
         return false;
     }
+
+    printMagenta("UDP socket created: " + std::to_string(sockfd) + " on port 12345");
 
     return true;
 }
@@ -141,8 +143,8 @@ UdpProtocol::~UdpProtocol() {
         close(sockfd); // Ensure the socket is closed on destruction
     }
 }
-bool UdpProtocol::openConnection(int &sockfd) {
-    if (!createSocket(sockfd)) {
+bool UdpProtocol::openConnection() {
+    if (!createSocket()) {
         return false;
     }
     if (!connectToServer()) {
@@ -210,9 +212,9 @@ Mail NetworkConnection::receiveData() {
         return mail;
     }
 }
-bool NetworkConnection::openConnection(int &sockfd) {
+bool NetworkConnection::openConnection() {
     if (protocolPtr) {
-        return protocolPtr->openConnection(sockfd);
+        return protocolPtr->openConnection();
     } else {
         return false;
     }
@@ -225,4 +227,8 @@ bool NetworkConnection::closeConnection() {
 }
 void NetworkConnection::setProtocol(NetworkProtocol *p) {
     protocolPtr.reset(p);
+}
+
+int NetworkConnection::getFdsocket() {
+    return protocolPtr->getFdsocket();
 }

@@ -15,7 +15,6 @@ class Listener {
   private:
     std::unordered_map<int, fdType> fdMap;
     std::thread listenerThread;
-    // Assuming MailBox and Mail are defined elsewhere
     MailBox *mailbox;
     Mail mail;
     NetworkConnection *connection;
@@ -69,7 +68,7 @@ class Listener {
                 close(efd);
                 return;
             }
-            printGreen("File descriptor: " + std::to_string(fd) + " added to epoll");
+            printGreen("File descriptor: " + std::to_string(fd) + " with name: " + std::to_string(fd_pair.second) + " added to epoll");
         }
     }
 
@@ -87,6 +86,8 @@ class Listener {
         while (true) {
             int n = epoll_wait(efd, events, 10, -1);
             for (int i = 0; i < n; i++) {
+                std::cout << "Event on FD: " << events[i].data.fd << std::endl;
+
                 int activeFd = events[i].data.fd;
 
                 // Look up the type of the active file descriptor
@@ -124,7 +125,6 @@ class Listener {
   public:
     Listener(MailBox *mailbox, NetworkConnection *connection)
         : mailbox(mailbox), connection(connection) {
-        listenerThread = std::thread([this] { this->runListener(); });
     }
 
     ~Listener() {
@@ -140,6 +140,10 @@ class Listener {
 
         // Print a message indicating the Listener is destroyed
         std::cout << "\033[1;31mListener destroyed\033[0m" << std::endl;
+    }
+
+    void run() {
+        listenerThread = std::thread([this] { this->runListener(); });
     }
 
     void addFd(int fd, fdType type) {
