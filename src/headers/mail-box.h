@@ -24,7 +24,7 @@ class Mail {
         REPLY = 0x01,
         NOT_REPLY = 0x01,
         CONFIRM = 0x00,
-        DO_NOT_ADD_TO_QUEUE,
+        DO_NOT_ADD_TO_QUEUE = 0x11,
     };
 
     struct ConfirmMessage {
@@ -118,8 +118,9 @@ class MailBox {
     int sequenceUDPNumber; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
 
     uint16_t readUInt16(const char **buffer) {
-        uint16_t value = **buffer | (*(*buffer + 1) << 8);
+        uint16_t value = (*(*buffer + 1)) | (**buffer << 8);
         (*buffer) += 2;
+        printRed(std::string("Read uint16: ") + std::to_string(value));
         return value;
     }
 
@@ -152,6 +153,7 @@ class MailBox {
             }
             std::lock_guard<std::mutex> lock(mtx);
             incomingMails.push(mail);
+            printGreen("Mail added to incomingMails");
         }
         cv.notify_one();
     }
@@ -213,12 +215,12 @@ class MailBox {
         printBlue("Writing mail");
 
         const char *current = *buffer;
-
         mail.type = static_cast<Mail::MessageType>(static_cast<unsigned char>(*current));
         current++;
-
         switch (mail.type) {
         case Mail::MessageType::CONFIRM:
+            mail.data = Mail::ConfirmMessage(readUInt16(&current));
+            break;
         case Mail::MessageType::BYE:
             mail.data = Mail::ByeMessage{readUInt16(&current)};
             break;
@@ -228,13 +230,14 @@ class MailBox {
             errMsg.DisplayName = readString(&current);
             errMsg.MessageContent = readString(&current);
             mail.data = errMsg;
-            break; // Add a break statement to prevent fall-through to the next case
+            break;
         }
         case Mail::MessageType::REPLY: {
             Mail::ReplyMessage replyMsg;
             replyMsg.MessageID = readUInt16(&current);
             replyMsg.Result = *current;
             current++;
+            replyMsg.RefMessageID = readUInt16(&current);
             replyMsg.MessageContent = readString(&current);
             mail.data = replyMsg;
             break;

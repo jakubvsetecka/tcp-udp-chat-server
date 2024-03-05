@@ -127,7 +127,6 @@ class Listener {
                             printRed("Failed to listen to stdin\n");
                             return;
                         }
-                        printGreen("Mail added to mailbox\n");
                         break;
                     case SocketPipe:
                         printBlue("SocketPipe");
@@ -135,7 +134,6 @@ class Listener {
                             printRed("Failed to listen to socket\n");
                             return;
                         }
-                        printGreen("Mail added to mailbox\n");
                         break;
                     case ToSendPipe:
                         // ... other cases ...
