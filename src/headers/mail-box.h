@@ -144,6 +144,13 @@ class MailBox {
         return mail;
     }
 
+    Mail getOutgoingMail() {
+        std::lock_guard<std::mutex> lock(mtx);
+        Mail mail = outgoingMails.front();
+        outgoingMails.pop();
+        return mail;
+    }
+
     void addMail(const Mail &mail) {
         {
             if (mail.type == Mail::MessageType::DO_NOT_ADD_TO_QUEUE) {
@@ -182,6 +189,7 @@ class MailBox {
         }
         // Send '1' to notifyListenerPipe to indicate a new mail has been sent
         if (notifyListenerPipe != nullptr) {
+            printGreen("Sending notification to listener");
             notifyListenerPipe->write("1"); // Send a string with '1'
         }
     }
@@ -323,6 +331,75 @@ class MailBox {
             tempQueue.front().printMail();
             tempQueue.pop();
         }
+    }
+};
+
+class MailSerializer {
+    std::vector<char> buffer;
+
+  public:
+    std::vector<char> serialize(const Mail &mail) {
+        // Reset buffer for new serialization
+        buffer.clear();
+
+        // Serialize MessageType
+        buffer.push_back(static_cast<char>(mail.type));
+
+        // Serialize MessageData
+        std::visit(*this, mail.data);
+
+        return buffer;
+    }
+
+    void operator()(const Mail::ConfirmMessage &msg) {
+        serialize(msg.RefMessageID);
+    }
+
+    void operator()(const Mail::AuthMessage &msg) {
+        serialize(msg.MessageID);
+        serialize(msg.Username);
+        serialize(msg.DisplayName);
+        serialize(msg.Secret);
+    }
+
+    void operator()(const Mail::JoinMessage &msg) {
+        serialize(msg.MessageID);
+        serialize(msg.ChannelID);
+        serialize(msg.DisplayName);
+    }
+
+    void operator()(const Mail::ErrorMessage &msg) {
+        serialize(msg.MessageID);
+        serialize(msg.DisplayName);
+        serialize(msg.MessageContent);
+    }
+
+    void operator()(const Mail::ByeMessage &msg) {
+        serialize(msg.MessageID);
+    }
+
+    void operator()(const Mail::TextMessage &msg) {
+        serialize(msg.MessageID);
+        serialize(msg.DisplayName);
+        serialize(msg.MessageContent);
+    }
+
+    void operator()(const Mail::ReplyMessage &msg) {
+        serialize(msg.MessageID);
+        serialize(msg.Result);
+        serialize(msg.RefMessageID);
+        serialize(msg.MessageContent);
+    }
+
+  private:
+    void serialize(int value) {
+        auto data = reinterpret_cast<const char *>(&value);
+        buffer.insert(buffer.end(), data, data + sizeof(value));
+    }
+
+    void serialize(const std::string &str) {
+        buffer.insert(buffer.end(), str.begin(), str.end());
+        buffer.push_back('\0'); // Null-terminate string
     }
 };
 
