@@ -3,16 +3,15 @@
 
 #include "mail-box.h"
 
+enum State {
+    START,
+    AUTH,
+    OPEN,
+    ERROR,
+    END
+};
+
 class FSM {
-
-    enum State {
-        START,
-        AUTH,
-        OPEN,
-        ERROR,
-        END
-    };
-
   private:
     State state;
     MailBox &mailbox;
@@ -26,6 +25,7 @@ class FSM {
         while (1) {
             switch (state) {
             case START:
+                printYellow("State: START\n");
                 mail = mailbox.waitMail();
                 switch (mail.type) {
                 case Mail::MessageType::AUTH:
@@ -40,7 +40,8 @@ class FSM {
                 }
                 break;
             case AUTH:
-                mail = mailbox.waitMail();
+                printYellow("State: AUTH\n");
+                mail = mailbox.waitMail(); // TODO: add flag to specify srv message or user message
                 switch (mail.type) {
                 case Mail::MessageType::REPLY:
                     if (std::get<Mail::ReplyMessage>(mail.data).Result == true) {
@@ -48,16 +49,11 @@ class FSM {
                         state = OPEN;
                     } else {
                         std::cout << "Authentication failed" << std::endl;
-                        std::cout << "Enter username: ";
-                        mail = mailbox.waitMail();
-                        if (mail.type == Mail::MessageType::AUTH) {
-                            mailbox.sendMail(mail);
-                        } else {
-                            state = ERROR;
-                        }
+                        state = AUTH;
                     }
                     break;
                 case Mail::MessageType::ERR:
+                    printYellow("State: AUTH\n");
                     mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
                     state = END;
@@ -70,9 +66,11 @@ class FSM {
                 }
                 break;
             case OPEN:
+                printYellow("State: OPEN\n");
                 mail = mailbox.waitMail();
                 switch (mail.type) {
                 case Mail::MessageType::MSG:
+                    printBrown("State: OPEN, Mail: MSG\n");
                     if (std::get<Mail::TextMessage>(mail.data).ToSend == true) {
                         mailbox.sendMail(mail);
                     } else {
@@ -81,20 +79,26 @@ class FSM {
                     }
                     break;
                 case Mail::MessageType::REPLY:
+                    printBrown("State: OPEN, Mail: REPLY\n");
                     state = OPEN;
                     break;
                 case Mail::MessageType::ERR:
+                    printBrown("State: OPEN, Mail: ERR\n");
                     mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
                     state = END;
                     break;
                 case Mail::MessageType::BYE:
+                    printBrown("State: OPEN, Mail: BYE\n");
                     state = END;
                     break;
                 case Mail::MessageType::JOIN:
+                    printBrown("State: OPEN, Mail: JOIN\n");
                     mailbox.sendMail(mail);
                     break;
+                    state = OPEN;
                 default:
+                    printBrown("State: OPEN, Mail: DEFAULT\n");
                     mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
                     state = ERROR;
@@ -102,14 +106,18 @@ class FSM {
                 }
                 break;
             case ERROR:
+                printYellow("State: ERROR\n");
                 mailbox.writeMail(Mail::MessageType::BYE, mail);
                 mailbox.sendMail(mail);
                 state = END;
                 break;
             case END:
+                printYellow("State: END\n");
                 state = END;
+                // TODO: tell listener to stop
                 return; // TODO: maybe just break?
             default:
+                printYellow("State: DEFAULT\n");
                 // handle unexpected state
                 std::cerr << "Unexpected state" << std::endl;
                 break;

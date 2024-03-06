@@ -27,4 +27,9 @@ inline void printMagenta(const std::string &text) {
               << "\n";
 }
 
+inline void printBrown(const std::string &text) {
+    std::cout << "\033[0;33m" << text << "\033[0m"
+              << "\n";
+}
+
 #endif // UTILS_H

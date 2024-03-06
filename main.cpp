@@ -31,6 +31,9 @@ int main(int argc, char **argv) {
     // Step 4: Instantiate StdinListener with the address of myPipe.
     StdinListener myStdinListener(&myPipe);
 
+    FSM fsm(State::START, mailbox);
+    fsm.run();
+
     // Step 5: Wait for the listener thread to complete.
     while (1) {
         // ... do something ...
