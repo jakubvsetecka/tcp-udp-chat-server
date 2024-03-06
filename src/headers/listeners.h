@@ -136,7 +136,9 @@ class Listener {
                         }
                         break;
                     case ToSendPipe:
-                        // ... other cases ...
+                        printBlue("ToSendPipe");
+                        mail = mailbox->getOutgoingMail();
+                        connection->sendData(mail);
                         break;
                     case Unknown:
                         std::cerr << "Unknown file descriptor type" << std::endl;

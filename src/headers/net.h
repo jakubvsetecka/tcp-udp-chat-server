@@ -16,6 +16,8 @@
 #include "net-utils.h"
 #include "stopwatch.h"
 
+#include <iomanip>
+
 //=================================NetworkProtocol=============================================
 /**
  * @brief Abstract class for network protocols.
@@ -81,6 +83,7 @@ class UdpProtocol : public NetworkProtocol {
     bool sendTo(const char *buffer, int size);
     bool getConfirm();
     void sendConfirm(uint16_t seq);
+    std::string convertBufferToHexString(const std::vector<char> &buffer);
 
     uint16_t messageID = 0;
 
