@@ -94,10 +94,10 @@ class Listener {
 
     void registerFd(int fd, int efd) {
         struct epoll_event event;
-        event.events = EPOLLIN; // Read operation | Edge Triggered
+        event.events = EPOLLIN;
         event.data.fd = fd;
         if (epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event) == -1) {
-            std::cerr << "Failed to add file descriptor to epoll" << std::endl;
+            std::cerr << "Failed to add file descriptor to epoll, error: " << strerror(errno) << std::endl;
             close(efd);
             return;
         }
@@ -119,9 +119,12 @@ class Listener {
 
         if (mail.type == Mail::MessageType::CONFIRM && std::get<Mail::ConfirmMessage>(mail.data).RefMessageID == refMsgId) {
             receivedConfirm = true;
+            retries = 0;
         }
 
-        mailbox->addMail(mail);
+        if (mail.type != Mail::MessageType::CONFIRM) {
+            mailbox->addMail(mail);
+        }
 
         return true;
     }
@@ -168,12 +171,13 @@ class Listener {
 
         struct epoll_event events[10]; // Buffer where events are returned
         while (true) {
+
             // TODO: Remove this comment: LMAOOO THIS IS UGLY AS FUCK
             if (!receivedConfirm && toSendRegistered) {
-                unregisterFd(mailbox->getNotifyListenerPipe().getReadFd(), efd);
+                unregisterFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
                 toSendRegistered = false;
             } else if (receivedConfirm && !toSendRegistered) {
-                registerFd(mailbox->getNotifyListenerPipe().getReadFd(), efd);
+                registerFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
                 toSendRegistered = true;
             }
 
@@ -187,7 +191,7 @@ class Listener {
             int n = epoll_wait(efd, events, 10, timeout);
             stopWatch.stop();
 
-            if (n == 0 && retries > connection->getRetries()) { // Time has ran out
+            if (n == 0 && retries >= connection->getRetries()) { // Time has ran out
                 std::cerr << "Error: Server not responding" << std::endl;
                 return;
             } else if (n == 0) { // You have few more tries

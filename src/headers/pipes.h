@@ -1,6 +1,7 @@
 #ifndef PIPES_H
 #define PIPES_H
 
+#include "utils.h"
 #include <fcntl.h>
 #include <iostream>
 #include <map>
@@ -33,6 +34,7 @@ class Pipe {
     }
 
     ~Pipe() {
+        printRed("Pipe destructor called on: " + std::to_string(type) + "\n");
         if (read_fd != -1) close(read_fd);
         if (write_fd != -1) close(write_fd);
     }
@@ -56,7 +58,9 @@ class Pipe {
     }
 
     int getWriteFd() const { return write_fd; }
-    int getReadFd() const { return read_fd; }
+    int getReadFd() const {
+        return read_fd;
+    }
     fdType getType() const { return type; }
 };
 

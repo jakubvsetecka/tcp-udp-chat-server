@@ -37,9 +37,8 @@ int main(int argc, char **argv) {
     fsm.run();
 
     // Step 5: Wait for the listener thread to complete.
-    while (1) {
-        // ... do something ...
-    }
+    // while (1) {
+    //}
 
     connection.closeConnection();
 

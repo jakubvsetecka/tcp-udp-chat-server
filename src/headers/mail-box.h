@@ -163,8 +163,8 @@ class MailBox {
         return mail;
     }
 
-    Pipe getNotifyListenerPipe() {
-        return *notifyListenerPipe;
+    Pipe *getNotifyListenerPipe() {
+        return notifyListenerPipe;
     }
 
     Mail getOutgoingMail() {
@@ -200,7 +200,6 @@ class MailBox {
                           std::is_same_v<T, Mail::ByeMessage> ||
                           std::is_same_v<T, Mail::TextMessage> ||
                           std::is_same_v<T, Mail::ReplyMessage>) {
-                // TODO: Generate or retrieve a suitable MessageID
                 arg.MessageID = sequenceUDPNumber++;
             }
         },
