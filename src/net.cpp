@@ -163,7 +163,30 @@ bool UdpProtocol::closeConnection() {
     return true;
 }
 
+std::string UdpProtocol::convertBufferToHexString(const std::vector<char> &buffer) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (unsigned char ch : buffer) {
+        ss << std::setw(2) << static_cast<int>(ch);
+    }
+    return ss.str();
+}
+
 void UdpProtocol::sendData(const Mail &mail) {
+    MailSerializer serializer;
+    std::vector<char> buffer = serializer.serialize(mail);
+
+    // Convert buffer to a human-readable format for logging, e.g., hex string
+    std::string bufferAsString = convertBufferToHexString(buffer);
+
+    printRed("Sending data: " + bufferAsString + " to " + ip + " on port " + std::to_string(port));
+
+    ssize_t sentBytes = sendto(sockfd, buffer.data(), buffer.size(), MSG_CONFIRM,
+                               (const struct sockaddr *)&server_addr, sizeof(server_addr));
+
+    if (sentBytes == -1) {
+        std::cerr << "Failed to send data: " << strerror(errno) << std::endl;
+    }
 }
 
 bool UdpProtocol::receiveData(char *buffer) {
