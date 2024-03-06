@@ -24,11 +24,11 @@ int main(int argc, char **argv) {
     MailBox mailbox(ProtocolType::UDP, &toSendPipe); // Create a MailBox instance
 
     // Instantiate Listener with fds
-    Listener myListener(&mailbox, &connection); // Instantiate the Listener object
-    myListener.addFd(readFd, StdinPipe);        // STDIN
-    myListener.addFd(sockfd, SocketPipe);       // Socket
-    myListener.addFd(readMailFd, ToSendPipe);   // MailBox
-    myListener.run();                           // Start the listener thread
+    Listener myListener(&mailbox, &connection, args.type); // Instantiate the Listener object
+    myListener.addFd(readFd, StdinPipe);                   // STDIN
+    myListener.addFd(sockfd, SocketPipe);                  // Socket
+    myListener.addFd(readMailFd, ToSendPipe);              // MailBox
+    myListener.run();                                      // Start the listener thread
 
     // Step 4: Instantiate StdinListener with the address of myPipe.
     StdinListener myStdinListener(&myPipe);

@@ -78,6 +78,25 @@ class Mail {
     MessageType type;
     MessageData data;
 
+    int getMessageID() const {
+        return std::visit([this](const auto &msg) -> int {
+            using T = std::decay_t<decltype(msg)>;
+            if constexpr (std::is_same_v<T, Mail::ConfirmMessage>) {
+                return msg.RefMessageID;
+            } else if constexpr (std::is_same_v<T, Mail::AuthMessage> ||
+                                 std::is_same_v<T, Mail::JoinMessage> ||
+                                 std::is_same_v<T, Mail::ErrorMessage> ||
+                                 std::is_same_v<T, Mail::ByeMessage> ||
+                                 std::is_same_v<T, Mail::TextMessage> ||
+                                 std::is_same_v<T, Mail::ReplyMessage>) {
+                return msg.MessageID;
+            } else {
+                // Handle the case where neither MessageID nor RefMessageID exist
+                return -1; // Or throw an exception, or use a default value
+            }
+        },
+                          data);
+    }
     void printMail() const {
         // start printg in magenta color
         std::cout << "\033[1;35m";
@@ -142,6 +161,10 @@ class MailBox {
         Mail mail = incomingMails.front();
         incomingMails.pop();
         return mail;
+    }
+
+    Pipe getNotifyListenerPipe() {
+        return *notifyListenerPipe;
     }
 
     Mail getOutgoingMail() {

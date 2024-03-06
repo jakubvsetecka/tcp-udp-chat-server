@@ -45,15 +45,18 @@ class NetworkProtocol {
     struct sockaddr_in server_addr;
 
     // only for UDP
-    uint16_t timeout = 0;
-    uint16_t retries = 0;
+    int timeout = -1;
+    int retries = -1;
 
   public:
     virtual void sendData(const Mail &mail) = 0;
     virtual bool receiveData(char *buffer) = 0;
     virtual bool openConnection() = 0;
     virtual bool closeConnection() = 0;
-    virtual ~NetworkProtocol() {}
+    virtual ~NetworkProtocol(){};
+
+    int getTimeout() { return timeout; }
+    int getRetries() { return retries; }
 
     int getFdsocket() { return sockfd; }
 };
@@ -66,7 +69,7 @@ class TcpProtocol : public NetworkProtocol {
     bool connectToServer();
 
   public:
-    TcpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
+    TcpProtocol(const std::string &ip, const uint16_t &port);
     ~TcpProtocol();
     bool openConnection() override;
     bool closeConnection() override;
@@ -84,8 +87,6 @@ class UdpProtocol : public NetworkProtocol {
     bool getConfirm();
     void sendConfirm(uint16_t seq);
     std::string convertBufferToHexString(const std::vector<char> &buffer);
-
-    uint16_t messageID = 0;
 
   public:
     UdpProtocol(const std::string &ip, const uint16_t &port, const uint16_t &timeout = 0, const uint16_t &retries = 0);
@@ -110,6 +111,8 @@ class NetworkConnection {
     bool closeConnection();
     void setProtocol(NetworkProtocol *p);
     int getFdsocket();
+    int getTimeout() { return protocolPtr->getTimeout(); }
+    int getRetries() { return protocolPtr->getRetries(); }
 };
 
 #endif // NET_H

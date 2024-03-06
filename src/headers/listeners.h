@@ -4,6 +4,7 @@
 #include "mail-box.h"
 #include "net.h"
 #include "pipes.h"
+#include "stopwatch.h"
 #include <bits/algorithmfwd.h>
 #include <string>
 #include <sys/epoll.h>
@@ -18,6 +19,11 @@ class Listener {
     MailBox *mailbox;
     Mail mail;
     NetworkConnection *connection;
+    ProtocolType protocolType;
+    bool receivedConfirm = true; // will send new packets only after receiving confirm
+    bool toSendRegistered = true;
+    int retries = 0;
+    int refMsgId = -1;
 
     bool listenStdin(int fd, int efd) {
 
@@ -77,6 +83,27 @@ class Listener {
         }
     }
 
+    void unregisterFd(int fd, int efd) {
+        if (epoll_ctl(efd, EPOLL_CTL_DEL, fd, nullptr) == -1) {
+            std::cerr << "Failed to remove file descriptor from epoll" << std::endl;
+            // You might choose to handle the error differently depending on your application's requirements
+        } else {
+            printGreen("File descriptor: " + std::to_string(fd) + " removed from epoll");
+        }
+    }
+
+    void registerFd(int fd, int efd) {
+        struct epoll_event event;
+        event.events = EPOLLIN; // Read operation | Edge Triggered
+        event.data.fd = fd;
+        if (epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event) == -1) {
+            std::cerr << "Failed to add file descriptor to epoll" << std::endl;
+            close(efd);
+            return;
+        }
+        printGreen("File descriptor: " + std::to_string(fd) + " added to epoll");
+    }
+
     bool listenSocket(char *buffer, int efd) {
         if (!connection->receiveData(buffer)) {
             std::cerr << "Failed to receive data" << std::endl;
@@ -88,6 +115,10 @@ class Listener {
             std::cerr << "Failed to write mail" << std::endl;
             close(efd);
             return false;
+        }
+
+        if (mail.type == Mail::MessageType::CONFIRM && std::get<Mail::ConfirmMessage>(mail.data).RefMessageID == refMsgId) {
+            receivedConfirm = true;
         }
 
         mailbox->addMail(mail);
@@ -111,7 +142,13 @@ class Listener {
         }
         mail = mailbox->getOutgoingMail();
         mail.printMail();
+
         connection->sendData(mail);
+        if (protocolType == ProtocolType::UDP) {
+            receivedConfirm = false;
+            refMsgId = mail.getMessageID();
+        }
+
         return true;
     }
 
@@ -125,9 +162,40 @@ class Listener {
         // Register file descriptors with epoll
         registerFds(fdMap, efd);
 
+        int timeout = -1; // Wait indefinitely
+
+        StopWatch stopWatch;
+
         struct epoll_event events[10]; // Buffer where events are returned
         while (true) {
-            int n = epoll_wait(efd, events, 10, -1);
+            // TODO: Remove this comment: LMAOOO THIS IS UGLY AS FUCK
+            if (!receivedConfirm && toSendRegistered) {
+                unregisterFd(mailbox->getNotifyListenerPipe().getReadFd(), efd);
+                toSendRegistered = false;
+            } else if (receivedConfirm && !toSendRegistered) {
+                registerFd(mailbox->getNotifyListenerPipe().getReadFd(), efd);
+                toSendRegistered = true;
+            }
+
+            if (!receivedConfirm) {
+                timeout = connection->getTimeout() - stopWatch.duration();
+            } else {
+                timeout = -1;
+            }
+
+            stopWatch.start();
+            int n = epoll_wait(efd, events, 10, timeout);
+            stopWatch.stop();
+
+            if (n == 0 && retries > connection->getRetries()) { // Time has ran out
+                std::cerr << "Error: Server not responding" << std::endl;
+                return;
+            } else if (n == 0) { // You have few more tries
+                stopWatch.reset();
+                retries++;
+                printRed("Time has run out! You have: " + std::to_string(connection->getRetries() - retries + 1) + " tries left");
+            }
+
             for (int i = 0; i < n; i++) {
                 std::cout << "Event on FD: " << events[i].data.fd << std::endl;
 
@@ -178,8 +246,8 @@ class Listener {
     }
 
   public:
-    Listener(MailBox *mailbox, NetworkConnection *connection)
-        : mailbox(mailbox), connection(connection) {
+    Listener(MailBox *mailbox, NetworkConnection *connection, ProtocolType protocolType)
+        : mailbox(mailbox), connection(connection), protocolType(protocolType) {
     }
 
     ~Listener() {
