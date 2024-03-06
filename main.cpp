@@ -19,14 +19,16 @@ int main(int argc, char **argv) {
     // Step 2: Get file descriptors from the Pipe object. (For demonstration, we're directly using myPipe here)
     int readFd = myPipe.getReadFd(); // Assuming Pipe class has getReadFd method.
 
-    Pipe ToSendPipe(fdType::ToSendPipe);             // Create a Pipe instance named ToSendPipe
-    MailBox mailbox(ProtocolType::UDP, &ToSendPipe); // Create a MailBox instance
+    Pipe toSendPipe(fdType::ToSendPipe);             // Create a Pipe instance named ToSendPipe
+    int readMailFd = toSendPipe.getReadFd();         // Get the read file descriptor of ToSendPipe
+    MailBox mailbox(ProtocolType::UDP, &toSendPipe); // Create a MailBox instance
 
     // Instantiate Listener with fds
     Listener myListener(&mailbox, &connection); // Instantiate the Listener object
-    myListener.addFd(readFd, StdinPipe);        // Assuming Listener class has addFd method.
-    myListener.addFd(sockfd, SocketPipe);
-    myListener.run(); // Start the listener thread
+    myListener.addFd(readFd, StdinPipe);        // STDIN
+    myListener.addFd(sockfd, SocketPipe);       // Socket
+    myListener.addFd(readMailFd, ToSendPipe);   // MailBox
+    myListener.run();                           // Start the listener thread
 
     // Step 4: Instantiate StdinListener with the address of myPipe.
     StdinListener myStdinListener(&myPipe);

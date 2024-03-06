@@ -185,12 +185,13 @@ class MailBox {
 
         {
             std::lock_guard<std::mutex> lock(mtx); // Lock the mutex for thread safety
-            outgoingMails.push(mail);              // Add mail to the outgoingMails queue
+            printGreen("Adding mail to outgoingMails");
+            outgoingMails.push(mail); // Add mail to the outgoingMails queue
         }
         // Send '1' to notifyListenerPipe to indicate a new mail has been sent
         if (notifyListenerPipe != nullptr) {
             printGreen("Sending notification to listener");
-            notifyListenerPipe->write("1"); // Send a string with '1'
+            notifyListenerPipe->write("1");
         }
     }
 

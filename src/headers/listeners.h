@@ -95,6 +95,26 @@ class Listener {
         return true;
     }
 
+    bool listenToSendPipe(int fd, int efd) {
+        char buf[1];
+        ssize_t count = read(fd, buf, sizeof(buf)); // Clear the pipe
+        if (count == -1) {
+            if (errno != EAGAIN) {
+                std::cerr << "Read error" << std::endl;
+                close(efd);
+                return false;
+            }
+        } else if (count == 0) {
+            std::cout << "Pipe closed" << std::endl;
+            close(efd);
+            return false;
+        }
+        mail = mailbox->getOutgoingMail();
+        mail.printMail();
+        connection->sendData(mail);
+        return true;
+    }
+
     void runListener() {
         int efd = epoll_create1(0);
         if (efd == -1) {
@@ -114,8 +134,9 @@ class Listener {
                 int activeFd = events[i].data.fd;
 
                 // Look up the type of the active file descriptor
+                // Must be EPOLLIN
                 auto it = fdMap.find(activeFd);
-                if (it != fdMap.end()) {
+                if (it != fdMap.end() && EPOLLIN) {
                     fdType type = it->second;
 
                     char buffer[1024] = {0};
@@ -135,11 +156,14 @@ class Listener {
                             return;
                         }
                         break;
-                    case ToSendPipe:
+                    case ToSendPipe: {
                         printBlue("ToSendPipe");
-                        mail = mailbox->getOutgoingMail();
-                        connection->sendData(mail);
+                        if (!listenToSendPipe(activeFd, efd)) {
+                            printRed("Failed to listen to send pipe\n");
+                            return;
+                        }
                         break;
+                    }
                     case Unknown:
                         std::cerr << "Unknown file descriptor type" << std::endl;
                         break;
