@@ -113,8 +113,8 @@ class MailBox {
     std::mutex mtx;
     std::condition_variable cv;
     Pipe *notifyListenerPipe;
-    std::string displayName;
-    int sequenceUDPNumber; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
+    std::string displayName = "default";
+    int sequenceUDPNumber = 0; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
 
     uint16_t readUInt16(const char **buffer) {
         uint16_t value = (*(*buffer + 1)) | (**buffer << 8);
@@ -156,7 +156,26 @@ class MailBox {
         cv.notify_one();
     }
 
-    void sendMail(const Mail &mail) {
+    void sendMail(Mail &mail) {
+        if (mail.type == Mail::MessageType::DO_NOT_ADD_TO_QUEUE) {
+            return;
+        }
+
+        // Set the MessageID for the mail if applicable
+        std::visit([&](auto &arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, Mail::AuthMessage> ||
+                          std::is_same_v<T, Mail::JoinMessage> ||
+                          std::is_same_v<T, Mail::ErrorMessage> ||
+                          std::is_same_v<T, Mail::ByeMessage> ||
+                          std::is_same_v<T, Mail::TextMessage> ||
+                          std::is_same_v<T, Mail::ReplyMessage>) {
+                // TODO: Generate or retrieve a suitable MessageID
+                arg.MessageID = sequenceUDPNumber++;
+            }
+        },
+                   mail.data);
+
         {
             std::lock_guard<std::mutex> lock(mtx); // Lock the mutex for thread safety
             outgoingMails.push(mail);              // Add mail to the outgoingMails queue
@@ -280,6 +299,7 @@ class MailBox {
         return true;
     }
     bool writeMail(Mail::MessageType msgType, Mail &mail) {
+
         switch (msgType) {
         case Mail::MessageType::ERR:
             mail.type = Mail::MessageType::ERR;
