@@ -36,6 +36,11 @@ int main(int argc, char **argv) {
     FSM fsm(State::START, mailbox);
     fsm.run();
 
+    std::cout << "Main thread is running" << std::endl;
+
+    myStdinListener.stop(); // Stop the listener thread
+    myListener.stop();      // Stop the listener thread
+
     // Step 5: Wait for the listener thread to complete.
     // while (1) {
     //}

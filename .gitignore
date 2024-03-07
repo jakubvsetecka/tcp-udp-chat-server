@@ -3,3 +3,4 @@ run_env.sh
 bin/*
 client.cpp
 *.txt
+*.log

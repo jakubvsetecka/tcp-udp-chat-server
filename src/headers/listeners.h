@@ -25,6 +25,7 @@ class Listener {
     int retries = 0;
     int refMsgId = -1; // To check if CONFIRM ID matches the sent message ID
     int refAuthId = -1;
+    std::atomic<bool> keepRunning = true;
 
     bool listenStdin(int fd, int efd) {
 
@@ -76,7 +77,8 @@ class Listener {
             event.events = EPOLLIN; // Read operation | Edge Triggered
             event.data.fd = fd;
             if (epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event) == -1) {
-                std::cerr << "Failed to add file descriptor to epoll" << std::endl;
+                std::cerr << "Failed to add file descriptor to epoll, error: " << strerror(errno) << std::endl;
+                std::cerr << "File descriptor: " << std::to_string(fd) << " with name: " << std::to_string(fd_pair.second) << " not added to epoll" << std::endl;
                 close(efd);
                 return;
             }
@@ -213,8 +215,7 @@ class Listener {
         StopWatch stopWatch;
 
         struct epoll_event events[10]; // Buffer where events are returned
-        while (true) {
-
+        while (keepRunning.load()) {
             // TODO: Remove this comment: LMAOOO THIS IS UGLY AS FUCK
             if (!receivedConfirm && toSendRegistered) {
                 unregisterFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
@@ -288,6 +289,7 @@ class Listener {
             }
 
             // Send or expect CONFIRM based on Flags
+            printBlue("keepRunning: " + std::to_string(keepRunning.load()) + ", receivedConfirm: " + std::to_string(receivedConfirm) + ", toSendRegistered: " + std::to_string(toSendRegistered));
         }
         close(efd);
     }
@@ -317,11 +319,28 @@ class Listener {
         listenerThread = std::thread([this] { this->runListener(); });
     }
 
+    void stop() {
+        printRed("Stopping listener");
+        // Set a flag to signal the listener thread to stop
+        keepRunning.store(false);
+
+        // If the thread is running, wait for it to finish
+        if (listenerThread.joinable()) {
+            listenerThread.join();
+        }
+
+        // Close all file descriptors to ensure proper resource deallocation
+        for (const auto &fd_pair : fdMap) {
+            close(fd_pair.first);
+        }
+
+        // Print a message indicating the Listener has stopped
+        printRed("Listener stopped");
+    }
+
     void addFd(int fd, fdType type) {
         fdMap[fd] = type;
     }
-
-    // Additional getters or utility methods as needed...
 };
 
 class StdinListener {
@@ -333,11 +352,33 @@ class StdinListener {
     static void runListener(StdinListener *listener) {
         std::string line;
         while (listener->keepRunning.load()) {
-            if (std::getline(std::cin, line)) {
-                listener->pipe->write(line + "\n");
-            } else {
-                break; // Exit if std::cin is closed or in a bad state
+            fd_set read_fds;
+            FD_ZERO(&read_fds);
+            FD_SET(STDIN_FILENO, &read_fds);
+
+            // Set timeout (e.g., 1 second)
+            struct timeval timeout;
+            timeout.tv_sec = 1;
+            timeout.tv_usec = 0;
+
+            // Check if stdin has data
+            int select_result = select(STDIN_FILENO + 1, &read_fds, nullptr, nullptr, &timeout);
+
+            if (select_result == -1) {
+                perror("select"); // Error occurred in select
+                break;
+            } else if (select_result > 0) {
+                // Data is available to read
+                if (FD_ISSET(STDIN_FILENO, &read_fds)) {
+                    if (std::getline(std::cin, line)) {
+                        listener->pipe->write(line + "\n");
+                    } else {
+                        // Break if getline fails (e.g., EOF or error)
+                        break;
+                    }
+                }
             }
+            // If select_result is 0, the timeout occurred, and the loop continues
         }
     }
 
@@ -353,6 +394,13 @@ class StdinListener {
             listenerThread.join();
         }
         std::cout << "\033[1;31mStdInListener destroyed\033[0m" << std::endl;
+    }
+
+    void stop() {
+        keepRunning.store(false);
+        if (listenerThread.joinable()) {
+            listenerThread.join();
+        }
     }
 
     // Delete copy constructor and copy assignment operator to prevent copying
