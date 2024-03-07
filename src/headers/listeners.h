@@ -26,6 +26,7 @@ class Listener {
     int refMsgId = -1; // To check if CONFIRM ID matches the sent message ID
     int refAuthId = -1;
     std::atomic<bool> keepRunning = true;
+    bool sentBye = false;
 
     bool listenStdin(int fd, int efd) {
 
@@ -197,6 +198,10 @@ class Listener {
             }
         }
 
+        if (mail.type == Mail::MessageType::BYE) {
+            sentBye = true;
+        }
+
         return true;
     }
 
@@ -215,7 +220,7 @@ class Listener {
         StopWatch stopWatch;
 
         struct epoll_event events[10]; // Buffer where events are returned
-        while (keepRunning.load()) {
+        while (keepRunning.load() || !sentBye || !receivedConfirm) {
             // TODO: Remove this comment: LMAOOO THIS IS UGLY AS FUCK
             if (!receivedConfirm && toSendRegistered) {
                 unregisterFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
@@ -289,7 +294,7 @@ class Listener {
             }
 
             // Send or expect CONFIRM based on Flags
-            printBlue("keepRunning: " + std::to_string(keepRunning.load()) + ", receivedConfirm: " + std::to_string(receivedConfirm) + ", toSendRegistered: " + std::to_string(toSendRegistered));
+            printBlue("keepRunning: " + std::to_string(keepRunning.load()) + ", receivedConfirm: " + std::to_string(receivedConfirm) + ", sentBye: " + std::to_string(sentBye));
         }
         close(efd);
     }

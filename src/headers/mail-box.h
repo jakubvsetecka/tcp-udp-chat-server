@@ -248,6 +248,7 @@ class MailBox {
             // printYellow(std::string("Auth: ") + authMsg.Username + ", " + authMsg.Secret + ", " + authMsg.DisplayName);
             mail.type = Mail::MessageType::AUTH;
             mail.data = authMsg;
+            mail.addToMailQueue = true;
         } else if (command == "/join") {
             Mail::JoinMessage joinMsg;
             iss >> joinMsg.ChannelID;
@@ -257,6 +258,7 @@ class MailBox {
             // printYellow(std::string("Join: ") + std::to_string(joinMsg.ChannelID) + ", " + joinMsg.DisplayName);
             mail.type = Mail::MessageType::JOIN;
             mail.data = joinMsg;
+            mail.addToMailQueue = true;
         } else if (command == "/rename") {
             std::string newDisplayName;
             iss >> newDisplayName;
@@ -278,6 +280,7 @@ class MailBox {
             textMsg.DisplayName = displayName;
             textMsg.MessageContent = line;
             mail.data = textMsg;
+            mail.addToMailQueue = true;
         }
 
         return true;
