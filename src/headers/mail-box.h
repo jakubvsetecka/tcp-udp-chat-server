@@ -97,6 +97,22 @@ class Mail {
         },
                           data);
     }
+
+    int getRefMessageID() const {
+        return std::visit([this](const auto &msg) -> int {
+            using T = std::decay_t<decltype(msg)>;
+            if constexpr (std::is_same_v<T, Mail::ConfirmMessage>) {
+                return msg.RefMessageID;
+            } else if constexpr (std::is_same_v<T, Mail::ReplyMessage>) {
+                return msg.RefMessageID;
+            } else {
+                // Handle the case where RefMessageID does not exist
+                return -1; // Or throw an exception, or use a default value
+            }
+        },
+                          data);
+    }
+
     void printMail() const {
         // start printg in magenta color
         std::cout << "\033[1;35m";
@@ -152,6 +168,8 @@ class MailBox {
     }
 
   public:
+    int srvMsgId = -1;
+
     MailBox(ProtocolType protocolType, Pipe *pipe = nullptr)
         : delivery_service(protocolType), notifyListenerPipe(pipe) {}
 

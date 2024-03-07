@@ -23,7 +23,8 @@ class Listener {
     bool receivedConfirm = true; // will send new packets only after receiving confirm
     bool toSendRegistered = true;
     int retries = 0;
-    int refMsgId = -1;
+    int refMsgId = -1; // To check if CONFIRM ID matches the sent message ID
+    int refAuthId = -1;
 
     bool listenStdin(int fd, int efd) {
 
@@ -117,12 +118,37 @@ class Listener {
             return false;
         }
 
-        if (mail.type == Mail::MessageType::CONFIRM && std::get<Mail::ConfirmMessage>(mail.data).RefMessageID == refMsgId) {
-            receivedConfirm = true;
-            retries = 0;
-        }
+        // For UDP
+        if (protocolType == ProtocolType::UDP) {
 
-        if (mail.type != Mail::MessageType::CONFIRM) {
+            // We are waiting for CONFIRM, packet is CONFIRM, it has the right RefMessageID
+            if (mail.type == Mail::MessageType::CONFIRM && std::get<Mail::ConfirmMessage>(mail.data).RefMessageID == refMsgId && receivedConfirm == false) {
+                receivedConfirm = true;
+                retries = 0;
+                refMsgId = -1; // No longer waiting for CONFIRM
+            }
+
+            if (mail.type != Mail::MessageType::CONFIRM) {
+                // Send CONFIRM
+                Mail confirmMail;
+                confirmMail.type = Mail::MessageType::CONFIRM;
+                std::get<Mail::ConfirmMessage>(confirmMail.data).RefMessageID = mail.getMessageID();
+                connection->sendData(confirmMail);
+
+                if (mail.getMessageID() <= mailbox->srvMsgId) { // Message has already been received
+                    printRed("Message has already been received");
+                    return true;
+                }
+
+                if (mail.type == Mail::MessageType::REPLY && refAuthId != mail.getRefMessageID()) {
+                    return true; // TODO: shouldt we terminate the connection here?
+                }
+
+                mailbox->addMail(mail);
+                mailbox->srvMsgId = mail.getMessageID();
+                printGreen("srvMsgId updated to: " + std::to_string(mailbox->srvMsgId));
+            }
+        } else { // For TCP
             mailbox->addMail(mail);
         }
 
@@ -147,9 +173,15 @@ class Listener {
         mail.printMail();
 
         connection->sendData(mail);
+
+        // For UDP
         if (protocolType == ProtocolType::UDP) {
             receivedConfirm = false;
             refMsgId = mail.getMessageID();
+
+            if (mail.type == Mail::MessageType::AUTH) {
+                refAuthId = mail.getMessageID();
+            }
         }
 
         return true;
@@ -197,7 +229,7 @@ class Listener {
             } else if (n == 0) { // You have few more tries
                 stopWatch.reset();
                 retries++;
-                printRed("Time has run out! You have: " + std::to_string(connection->getRetries() - retries + 1) + " tries left");
+                printRed("Awaiting confirmation failed. Retrying... (retries left: " + std::to_string(connection->getRetries() - retries + 1) + ")");
             }
 
             for (int i = 0; i < n; i++) {
