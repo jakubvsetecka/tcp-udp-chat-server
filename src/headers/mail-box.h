@@ -22,7 +22,6 @@ class Mail {
         MSG = 0x04,
         REPLY = 0x01,
         CONFIRM = 0x00,
-        DO_NOT_ADD_TO_QUEUE = 0x11,
     };
 
     struct ConfirmMessage {
@@ -77,6 +76,7 @@ class Mail {
 
     MessageType type;
     MessageData data;
+    bool addToMailQueue = true;
 
     int getMessageID() const {
         return std::visit([this](const auto &msg) -> int {
@@ -194,7 +194,7 @@ class MailBox {
 
     void addMail(const Mail &mail) {
         {
-            if (mail.type == Mail::MessageType::DO_NOT_ADD_TO_QUEUE) {
+            if (mail.addToMailQueue == false) {
                 return;
             }
             std::lock_guard<std::mutex> lock(mtx);
@@ -205,7 +205,7 @@ class MailBox {
     }
 
     void sendMail(Mail &mail) {
-        if (mail.type == Mail::MessageType::DO_NOT_ADD_TO_QUEUE) {
+        if (mail.addToMailQueue == false) {
             return;
         }
 
@@ -261,15 +261,15 @@ class MailBox {
             std::string newDisplayName;
             iss >> newDisplayName;
             // printYellow(std::string("Rename: ") + newDisplayName);
-            mail.type = Mail::MessageType::DO_NOT_ADD_TO_QUEUE;
+            mail.addToMailQueue = false;
             displayName = newDisplayName;
         } else if (command == "/help") {
             // printYellow("Help");
-            mail.type = Mail::MessageType::DO_NOT_ADD_TO_QUEUE;
+            mail.addToMailQueue = false;
         } else if (command == "/print") {
             printYellow("Print");
             printMails();
-            mail.type = Mail::MessageType::DO_NOT_ADD_TO_QUEUE;
+            mail.addToMailQueue = false;
         } else {
             mail.type = Mail::MessageType::MSG;
             Mail::TextMessage textMsg;
@@ -292,9 +292,11 @@ class MailBox {
         switch (mail.type) {
         case Mail::MessageType::CONFIRM:
             mail.data = Mail::ConfirmMessage(readUInt16(&current));
+            mail.addToMailQueue = false;
             break;
         case Mail::MessageType::BYE:
             mail.data = Mail::ByeMessage{readUInt16(&current)};
+            mail.addToMailQueue = true;
             break;
         case Mail::MessageType::ERR: {
             Mail::ErrorMessage errMsg;
@@ -302,6 +304,7 @@ class MailBox {
             errMsg.DisplayName = readString(&current);
             errMsg.MessageContent = readString(&current);
             mail.data = errMsg;
+            mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::REPLY: {
@@ -312,6 +315,7 @@ class MailBox {
             replyMsg.RefMessageID = readUInt16(&current);
             replyMsg.MessageContent = readString(&current);
             mail.data = replyMsg;
+            mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::AUTH: {
@@ -321,6 +325,7 @@ class MailBox {
             authMsg.DisplayName = readString(&current);
             authMsg.Secret = readString(&current);
             mail.data = authMsg;
+            mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::JOIN: {
@@ -329,6 +334,7 @@ class MailBox {
             joinMsg.ChannelID = std::stoi(readString(&current));
             joinMsg.DisplayName = readString(&current);
             mail.data = joinMsg;
+            mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::MSG: {
@@ -337,6 +343,7 @@ class MailBox {
             srvMsg.DisplayName = readString(&current);
             srvMsg.MessageContent = readString(&current);
             mail.data = srvMsg;
+            mail.addToMailQueue = true;
             break;
         }
         default:
@@ -347,7 +354,7 @@ class MailBox {
 
         return true;
     }
-    bool writeMail(Mail::MessageType msgType, Mail &mail) {
+    bool writeMail(Mail::MessageType msgType, Mail &mail, int refMessageID = -1) {
 
         switch (msgType) {
         case Mail::MessageType::ERR:
@@ -357,6 +364,10 @@ class MailBox {
         case Mail::MessageType::BYE:
             mail.type = Mail::MessageType::BYE;
             mail.data = Mail::ByeMessage{sequenceUDPNumber};
+            break;
+        case Mail::MessageType::CONFIRM:
+            mail.type = Mail::MessageType::CONFIRM;
+            mail.data = Mail::ConfirmMessage{refMessageID};
             break;
         default: // TODO: shouldnt happen
             mail.type = Mail::MessageType::ERR;

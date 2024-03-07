@@ -121,36 +121,46 @@ class Listener {
         // For UDP
         if (protocolType == ProtocolType::UDP) {
 
-            // We are waiting for CONFIRM, packet is CONFIRM, it has the right RefMessageID
-            if (mail.type == Mail::MessageType::CONFIRM && std::get<Mail::ConfirmMessage>(mail.data).RefMessageID == refMsgId && receivedConfirm == false) {
-                receivedConfirm = true;
-                retries = 0;
-                refMsgId = -1; // No longer waiting for CONFIRM
-            }
+            Mail confirmMail;
+            mailbox->writeMail(Mail::MessageType::CONFIRM, confirmMail, mail.getMessageID());
 
-            if (mail.type != Mail::MessageType::CONFIRM) {
-                // Send CONFIRM
-                Mail confirmMail;
-                confirmMail.type = Mail::MessageType::CONFIRM;
-                std::get<Mail::ConfirmMessage>(confirmMail.data).RefMessageID = mail.getMessageID();
-                connection->sendData(confirmMail);
-
+            switch (mail.type) {
+            case Mail::MessageType::REPLY:
                 if (mail.getMessageID() <= mailbox->srvMsgId) { // Message has already been received
                     printRed("Message has already been received");
                     return true;
                 }
-
-                if (mail.type == Mail::MessageType::REPLY && refAuthId != mail.getRefMessageID()) {
+                if (refAuthId != mail.getRefMessageID()) {
+                    printRed("Invalid refAuthId");
                     return true; // TODO: shouldt we terminate the connection here?
                 }
-
-                mailbox->addMail(mail);
                 mailbox->srvMsgId = mail.getMessageID();
                 printGreen("srvMsgId updated to: " + std::to_string(mailbox->srvMsgId));
+                break;
+            case Mail::MessageType::CONFIRM:
+                if (std::get<Mail::ConfirmMessage>(mail.data).RefMessageID == refMsgId && receivedConfirm == false) {
+                    receivedConfirm = true;
+                    retries = 0;
+                    refMsgId = -1; // No longer waiting for CONFIRM
+                    printGreen("Received CONFIRM");
+                }
+                mail.addToMailQueue = false;
+                return true;
+                break;
+            default:
+                if (mail.getMessageID() <= mailbox->srvMsgId) { // Message has already been received
+                    printRed("Message has already been received");
+                    return true;
+                }
+                mailbox->srvMsgId = mail.getMessageID();
+                break;
             }
-        } else { // For TCP
-            mailbox->addMail(mail);
+
+            connection->sendData(confirmMail);
+            std::cout << "Sent confirm" << std::endl;
         }
+
+        mailbox->addMail(mail);
 
         return true;
     }
@@ -181,6 +191,7 @@ class Listener {
 
             if (mail.type == Mail::MessageType::AUTH) {
                 refAuthId = mail.getMessageID();
+                printGreen("refAuthId updated to: " + std::to_string(refAuthId));
             }
         }
 
