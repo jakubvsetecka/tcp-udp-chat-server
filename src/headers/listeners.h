@@ -17,7 +17,7 @@ class Listener {
     std::unordered_map<int, fdType> fdMap;
     std::thread listenerThread;
     MailBox *mailbox;
-    Mail mail;
+    Mail confMail;
     NetworkConnection *connection;
     ProtocolType protocolType;
     bool receivedConfirm = true; // will send new packets only after receiving confirm
@@ -53,7 +53,7 @@ class Listener {
         for (int i = 0; i < count; i++) {
             if (buf[i] == '\n') {
                 if (!line.empty()) {
-
+                    Mail mail;
                     if (!mailbox->writeMail(line, mail)) {
                         std::cerr << "Failed to write mail" << std::endl;
                         close(efd);
@@ -115,6 +115,7 @@ class Listener {
             return false;
         }
 
+        Mail mail;
         if (!mailbox->writeMail(&buffer, mail)) {
             std::cerr << "Failed to write mail" << std::endl;
             close(efd);
@@ -137,6 +138,7 @@ class Listener {
                 }
                 if (refAuthId != mail.getRefMessageID()) {
                     printRed("Invalid refAuthId");
+                    printRed("refAuthId: " + std::to_string(refAuthId) + ", refMessageID: " + std::to_string(mail.getRefMessageID()));
                     return true; // TODO: shouldt we terminate the connection here?
                 }
                 mailbox->srvMsgId = mail.getMessageID();
@@ -184,17 +186,20 @@ class Listener {
             close(efd);
             return false;
         }
-        mail = mailbox->getOutgoingMail();
+        Mail mail = mailbox->getOutgoingMail();
         mail.printMail();
 
         connection->sendData(mail);
+
+        mail.printMail();
 
         // For UDP
         if (protocolType == ProtocolType::UDP) {
             receivedConfirm = false;
             refMsgId = mail.getMessageID();
+            confMail = mail;
 
-            if (mail.type == Mail::MessageType::AUTH) {
+            if (mail.type == Mail::MessageType::AUTH || mail.type == Mail::MessageType::JOIN) {
                 refAuthId = mail.getMessageID();
                 printGreen("refAuthId updated to: " + std::to_string(refAuthId));
             }
@@ -251,6 +256,8 @@ class Listener {
                 stopWatch.reset();
                 retries++;
                 printRed("Awaiting confirmation failed. Retrying... (retries left: " + std::to_string(connection->getRetries() - retries + 1) + ")");
+
+                connection->sendData(confMail);
             }
 
             for (int i = 0; i < n; i++) {

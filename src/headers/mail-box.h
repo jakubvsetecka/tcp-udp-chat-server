@@ -38,7 +38,7 @@ class Mail {
 
     struct JoinMessage {
         int MessageID;
-        int ChannelID = 0;
+        std::string ChannelID;
         std::string DisplayName;
     };
 
@@ -150,7 +150,7 @@ class MailBox {
     std::condition_variable cv;
     Pipe *notifyListenerPipe;
     std::string displayName = "default";
-    uint16_t sequenceUDPNumber = 11; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
+    uint16_t sequenceUDPNumber = 1; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
 
     uint16_t readUInt16(const char **buffer) {
         uint16_t value = (*(*buffer + 1)) | (**buffer << 8);
@@ -250,24 +250,23 @@ class MailBox {
             mail.type = Mail::MessageType::AUTH;
             mail.data = authMsg;
             mail.addToMailQueue = true;
+            displayName = authMsg.DisplayName;
         } else if (command == "/join") {
             Mail::JoinMessage joinMsg;
             iss >> joinMsg.ChannelID;
-            // Assuming DisplayName needs to be set for JOIN message as well
-            // If not, remove the following line
-            iss >> joinMsg.DisplayName;
-            // printYellow(std::string("Join: ") + std::to_string(joinMsg.ChannelID) + ", " + joinMsg.DisplayName);
+            printYellow(std::string("Join: ") + joinMsg.ChannelID + ", " + joinMsg.DisplayName);
+            joinMsg.DisplayName = displayName;
             mail.type = Mail::MessageType::JOIN;
             mail.data = joinMsg;
             mail.addToMailQueue = true;
         } else if (command == "/rename") {
             std::string newDisplayName;
             iss >> newDisplayName;
-            // printYellow(std::string("Rename: ") + newDisplayName);
+            printYellow(std::string("Rename: ") + newDisplayName);
             mail.addToMailQueue = false;
             displayName = newDisplayName;
         } else if (command == "/help") {
-            // printYellow("Help");
+            printYellow("Help");
             mail.addToMailQueue = false;
         } else if (command == "/print") {
             printYellow("Print");
@@ -282,8 +281,9 @@ class MailBox {
             textMsg.MessageContent = line;
             mail.data = textMsg;
             mail.addToMailQueue = true;
-        }
 
+            printYellow(std::string("Message: ") + textMsg.DisplayName + ": " + textMsg.MessageContent);
+        }
         return true;
     }
 
@@ -295,14 +295,17 @@ class MailBox {
         current++;
         switch (mail.type) {
         case Mail::MessageType::CONFIRM:
+            printYellow("Confirm message");
             mail.data = Mail::ConfirmMessage(readUInt16(&current));
             mail.addToMailQueue = false;
             break;
         case Mail::MessageType::BYE:
+            printYellow("Bye message");
             mail.data = Mail::ByeMessage{readUInt16(&current)};
             mail.addToMailQueue = true;
             break;
         case Mail::MessageType::ERR: {
+            printYellow("Error message");
             Mail::ErrorMessage errMsg;
             errMsg.MessageID = readUInt16(&current);
             errMsg.DisplayName = readString(&current);
@@ -312,6 +315,7 @@ class MailBox {
             break;
         }
         case Mail::MessageType::REPLY: {
+            printYellow("Reply message");
             Mail::ReplyMessage replyMsg;
             replyMsg.MessageID = readUInt16(&current);
             replyMsg.Result = *current;
@@ -323,6 +327,7 @@ class MailBox {
             break;
         }
         case Mail::MessageType::AUTH: {
+            printYellow("Auth message");
             Mail::AuthMessage authMsg;
             authMsg.MessageID = readUInt16(&current);
             authMsg.Username = readString(&current);
@@ -333,15 +338,17 @@ class MailBox {
             break;
         }
         case Mail::MessageType::JOIN: {
+            printYellow("Join message");
             Mail::JoinMessage joinMsg;
             joinMsg.MessageID = readUInt16(&current);
-            joinMsg.ChannelID = std::stoi(readString(&current));
+            joinMsg.ChannelID = readString(&current);
             joinMsg.DisplayName = readString(&current);
             mail.data = joinMsg;
             mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::MSG: {
+            printYellow("Text message");
             Mail::TextMessage srvMsg;
             srvMsg.MessageID = readUInt16(&current);
             srvMsg.DisplayName = readString(&current);
@@ -364,14 +371,17 @@ class MailBox {
         case Mail::MessageType::ERR:
             mail.type = Mail::MessageType::ERR;
             mail.data = Mail::ErrorMessage{sequenceUDPNumber, displayName, "MessageContent"};
+            printYellow("Error message");
             break;
         case Mail::MessageType::BYE:
             mail.type = Mail::MessageType::BYE;
             mail.data = Mail::ByeMessage{sequenceUDPNumber};
+            printYellow("Bye message");
             break;
         case Mail::MessageType::CONFIRM:
             mail.type = Mail::MessageType::CONFIRM;
             mail.data = Mail::ConfirmMessage{refMessageID};
+            printYellow("Confirm message");
             break;
         default: // TODO: shouldnt happen
             mail.type = Mail::MessageType::ERR;
