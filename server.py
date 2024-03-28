@@ -9,9 +9,28 @@ DEST_PORT = 12345
 SRC_IP = "127.0.0.1"
 SRC_PORT = 4567
 
-# Create a UDP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind((SRC_IP, SRC_PORT))
+# Create a global UDP socket
+sock = None
+
+def create_socket(ip, port):
+    global sock
+    if sock is not None:
+        sock.close()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((ip, port))
+    print(f"Socket now bound to {ip}:{port}")
+
+# Initial socket creation
+create_socket(SRC_IP, SRC_PORT)
+
+def change_port():
+    global SRC_PORT
+    new_port = simpledialog.askinteger("Input", "New Port:")
+    if new_port is not None and 0 <= new_port <= 65535:
+        SRC_PORT = new_port
+        create_socket(SRC_IP, SRC_PORT)
+    else:
+        print("Invalid port")
 
 # Function to send CONFIRM message
 def send_confirm():
@@ -79,7 +98,8 @@ def send_bye():
 root = Tk()
 root.title("Packet Sender")
 
-# Add buttons for each message type
+# Add buttons for each message type and port change
+Button(root, text="Change Port", command=change_port).pack(fill=X)
 Button(root, text="CONFIRM", command=send_confirm).pack(fill=X)
 Button(root, text="REPLY", command=send_reply).pack(fill=X)
 Button(root, text="AUTH", command=send_auth).pack(fill=X)

@@ -112,10 +112,10 @@ bool UdpProtocol::connectToServer() {
         return false;
     }
 
-    if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        std::cerr << "Connection Failed" << std::endl;
-        return false;
-    }
+    // if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    //     std::cerr << "Connection Failed" << std::endl;
+    //     return false;
+    // }
     return true;
 }
 
@@ -188,7 +188,11 @@ void UdpProtocol::sendData(const Mail &mail) {
 }
 
 bool UdpProtocol::receiveData(char *buffer) {
-    int bytes_received = recv(sockfd, buffer, 1024, 0);
+    struct sockaddr_in fromAddr;
+    socklen_t fromAddrLen = sizeof(fromAddr);
+
+    int bytes_received = recvfrom(sockfd, buffer, 1024, 0,
+                                  (struct sockaddr *)&fromAddr, &fromAddrLen);
     if (bytes_received < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             // No data available right now, not an error in non-blocking mode
@@ -198,10 +202,21 @@ bool UdpProtocol::receiveData(char *buffer) {
         }
         return false;
     } else if (bytes_received == 0) {
-        // Handle the case where the remote side has closed the connection
+        // Connection closed by peer, which should not occur in UDP
         std::cerr << "Connection closed by peer" << std::endl;
         return false;
     }
+
+    // Extract and print the sender's port number
+    unsigned int senderPort = ntohs(fromAddr.sin_port);
+    std::cout << "Received packet from port: " << senderPort << std::endl;
+
+    if (senderPort != port) {
+        port = senderPort;
+        std::cout << "Port changed to: " << port << std::endl;
+        this->connectToServer();
+    }
+
     return true;
 }
 

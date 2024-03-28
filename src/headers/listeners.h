@@ -131,6 +131,8 @@ class Listener {
             case Mail::MessageType::REPLY:
                 if (mail.getMessageID() <= mailbox->srvMsgId) { // Message has already been received
                     printRed("Message has already been received");
+                    connection->sendData(confirmMail);
+                    std::cout << "Sent confirm" << std::endl;
                     return true;
                 }
                 if (refAuthId != mail.getRefMessageID()) {
@@ -236,7 +238,9 @@ class Listener {
                 timeout = -1;
             }
 
+            std::cout << "setting timer\n";
             stopWatch.start();
+            std::cout << "waiting for fds for: " << timeout << " mili-seconds\n";
             int n = epoll_wait(efd, events, 10, timeout);
             stopWatch.stop();
 

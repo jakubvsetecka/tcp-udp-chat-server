@@ -4,6 +4,7 @@
 #include "net-utils.h"
 #include "pipes.h"
 #include "utils.h"
+#include <arpa/inet.h> // For htons
 #include <condition_variable>
 #include <iostream>
 #include <mutex>
@@ -29,7 +30,7 @@ class Mail {
     };
 
     struct AuthMessage {
-        int MessageID;
+        uint16_t MessageID;
         std::string Username;
         std::string DisplayName;
         std::string Secret;
@@ -42,7 +43,7 @@ class Mail {
     };
 
     struct ErrorMessage {
-        int MessageID;
+        uint MessageID;
         std::string DisplayName;
         std::string MessageContent;
     };
@@ -149,7 +150,7 @@ class MailBox {
     std::condition_variable cv;
     Pipe *notifyListenerPipe;
     std::string displayName = "default";
-    int sequenceUDPNumber = 0; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
+    uint16_t sequenceUDPNumber = 11; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
 
     uint16_t readUInt16(const char **buffer) {
         uint16_t value = (*(*buffer + 1)) | (**buffer << 8);
@@ -245,7 +246,7 @@ class MailBox {
         if (command == "/auth") {
             Mail::AuthMessage authMsg;
             iss >> authMsg.Username >> authMsg.Secret >> authMsg.DisplayName;
-            // printYellow(std::string("Auth: ") + authMsg.Username + ", " + authMsg.Secret + ", " + authMsg.DisplayName);
+            printYellow(std::string("Auth: ") + authMsg.Username + ", " + authMsg.Secret + ", " + authMsg.DisplayName);
             mail.type = Mail::MessageType::AUTH;
             mail.data = authMsg;
             mail.addToMailQueue = true;
@@ -447,14 +448,17 @@ class MailSerializer {
     }
 
   private:
-    void serialize(int value) {
-        auto data = reinterpret_cast<const char *>(&value);
-        buffer.insert(buffer.end(), data, data + sizeof(value));
+    void serialize(uint16_t value) {
+        uint16_t bigEndianValue = htons(value); // Convert to big endian
+        auto data = reinterpret_cast<const char *>(&bigEndianValue);
+        buffer.insert(buffer.end(), data, data + sizeof(bigEndianValue));
+        std::cout << "Serialized int (big endian): " << value << std::endl;
     }
 
     void serialize(const std::string &str) {
         buffer.insert(buffer.end(), str.begin(), str.end());
         buffer.push_back('\0'); // Null-terminate string
+        std::cout << "Serialized string: " << str << std::endl;
     }
 };
 
