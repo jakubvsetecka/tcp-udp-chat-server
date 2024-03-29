@@ -78,6 +78,7 @@ class Mail {
     MessageType type;
     MessageData data;
     bool addToMailQueue = true;
+    bool sigint = false;
 
     int getMessageID() const {
         return std::visit([this](const auto &msg) -> int {
@@ -150,7 +151,7 @@ class MailBox {
     std::condition_variable cv;
     Pipe *notifyListenerPipe;
     std::string displayName = "default";
-    uint16_t sequenceUDPNumber = 1; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
+    uint16_t sequenceUDPNumber = 0; // Tells the sequence number for UDP messages, so listener can send a reply with CONFIRM
 
     uint16_t readUInt16(const char **buffer) {
         uint16_t value = (*(*buffer + 1)) | (**buffer << 8);

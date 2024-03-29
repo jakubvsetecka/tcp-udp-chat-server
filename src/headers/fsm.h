@@ -32,6 +32,18 @@ class FSM {
                     mailbox.sendMail(mail);
                     state = AUTH;
                     break;
+                case Mail::MessageType::ERR:
+                    std::cout << "Error: " << std::endl;
+                    if (mail.sigint) {
+                        mailbox.writeMail(Mail::MessageType::BYE, mail);
+                        mailbox.sendMail(mail);
+                        state = END;
+                    } else {
+                        mailbox.writeMail(Mail::MessageType::ERR, mail);
+                        mailbox.sendMail(mail);
+                        state = ERROR;
+                    }
+                    break;
                 default:
                     mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
@@ -54,7 +66,7 @@ class FSM {
                     break;
                 case Mail::MessageType::ERR:
                     printYellow("State: AUTH\n");
-                    mailbox.writeMail(Mail::MessageType::ERR, mail);
+                    mailbox.writeMail(Mail::MessageType::BYE, mail);
                     mailbox.sendMail(mail);
                     state = END;
                     break;
@@ -84,7 +96,7 @@ class FSM {
                     break;
                 case Mail::MessageType::ERR:
                     printBrown("State: OPEN, Mail: ERR\n");
-                    mailbox.writeMail(Mail::MessageType::ERR, mail);
+                    mailbox.writeMail(Mail::MessageType::BYE, mail);
                     mailbox.sendMail(mail);
                     state = END;
                     break;

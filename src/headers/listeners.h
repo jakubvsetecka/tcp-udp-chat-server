@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <vector>
 
+extern int writeSignalFd;
+
 class Listener {
   private:
     std::unordered_map<int, fdType> fdMap;
@@ -212,6 +214,29 @@ class Listener {
         return true;
     }
 
+    bool listenSignal(int fd, int efd) {
+        char buf[1];
+        ssize_t count = read(fd, buf, sizeof(buf)); // Clear the pipe
+        if (count == -1) {
+            if (errno != EAGAIN) {
+                std::cerr << "Read error" << std::endl;
+                close(efd);
+                return false;
+            }
+        } else if (count == 0) {
+            std::cout << "Pipe closed" << std::endl;
+            close(efd);
+            return false;
+        }
+
+        Mail mail;
+        mailbox->writeMail(Mail::MessageType::ERR, mail);
+        mail.sigint = true;
+        mailbox->addMail(mail);
+
+        return true;
+    }
+
     void runListener() {
         int efd = epoll_create1(0);
         if (efd == -1) {
@@ -227,7 +252,7 @@ class Listener {
         StopWatch stopWatch;
 
         struct epoll_event events[10]; // Buffer where events are returned
-        while (keepRunning.load() || !sentBye || !receivedConfirm) {
+        while (keepRunning.load() && (!sentBye || !receivedConfirm)) {
             // TODO: Remove this comment: LMAOOO THIS IS UGLY AS FUCK
             if (!receivedConfirm && toSendRegistered) {
                 unregisterFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
@@ -296,6 +321,13 @@ class Listener {
                         }
                         break;
                     }
+                    case SignalPipe:
+                        printBlue("SignalPipe");
+                        if (!listenSignal(activeFd, efd)) {
+                            printRed("Failed to listen to signal pipe\n");
+                            return;
+                        }
+                        break;
                     case Unknown:
                         std::cerr << "Unknown file descriptor type" << std::endl;
                         break;
@@ -356,6 +388,11 @@ class Listener {
 
     void addFd(int fd, fdType type) {
         fdMap[fd] = type;
+    }
+
+    static void handleSignal(int signum) {
+        std::cout << "Interrupt signal (" << signum << ") received.\n";
+        write(writeSignalFd, "1", 1);
     }
 };
 

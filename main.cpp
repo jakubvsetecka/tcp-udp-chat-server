@@ -5,6 +5,12 @@
 #include "pipes.h"
 #include <iostream>
 
+#include <csignal>
+#include <iostream>
+#include <unistd.h> // For sleep()
+
+int writeSignalFd;
+
 int main(int argc, char **argv) {
 
     ArgumentParser args(argc, argv);
@@ -23,15 +29,23 @@ int main(int argc, char **argv) {
     int readMailFd = toSendPipe.getReadFd();         // Get the read file descriptor of ToSendPipe
     MailBox mailbox(ProtocolType::UDP, &toSendPipe); // Create a MailBox instance
 
+    Pipe signalPipe(fdType::SignalPipe);   // Create a Pipe instance named SignalPipe
+    int signalFd = signalPipe.getReadFd(); // singalFd is a global variable
+    writeSignalFd = signalPipe.getWriteFd();
+
     // Instantiate Listener with fds
     Listener myListener(&mailbox, &connection, args.type); // Instantiate the Listener object
     myListener.addFd(readFd, StdinPipe);                   // STDIN
     myListener.addFd(sockfd, SocketPipe);                  // Socket
     myListener.addFd(readMailFd, ToSendPipe);              // MailBox
+    myListener.addFd(signalFd, SignalPipe);                // SignalPipe
     myListener.run();                                      // Start the listener thread
 
     // Step 4: Instantiate StdinListener with the address of myPipe.
     StdinListener myStdinListener(&myPipe);
+
+    // Register signal SIGTERM and signal handler
+    signal(SIGINT, Listener::handleSignal);
 
     FSM fsm(State::START, mailbox);
     fsm.run();

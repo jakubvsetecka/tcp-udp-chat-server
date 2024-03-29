@@ -13,6 +13,7 @@ enum fdType {
     StdinPipe,
     SocketPipe,
     ToSendPipe,
+    SignalPipe,
     Unknown
 };
 
