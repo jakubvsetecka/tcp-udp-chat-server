@@ -57,6 +57,13 @@ bool TcpProtocol::closeConnection() {
 }
 
 void TcpProtocol::sendData(const Mail &mail) {
+    MailSerializer serializer(false);
+    std::vector<char> buffer = serializer.serialize(mail);
+    int bytes_to_send = send(sockfd, buffer.data(), buffer.size(), 0);
+    if (bytes_to_send < 0) {
+        std::cerr << "Failed to send data" << std::endl;
+    }
+    printRed("Sending data: " + std::string(buffer.data()) + " to " + ip + " on port " + std::to_string(port));
     // int bytes_to_send = send(sockfd, mail.data, mail.args[0].size(), 0);
     // if (bytes_to_send < 0) {
     //     std::cerr << "Failed to send data" << std::endl;
@@ -171,7 +178,7 @@ std::string UdpProtocol::convertBufferToHexString(const std::vector<char> &buffe
 }
 
 void UdpProtocol::sendData(const Mail &mail) {
-    MailSerializer serializer;
+    MailSerializer serializer(true);
     std::vector<char> buffer = serializer.serialize(mail);
 
     // Convert buffer to a human-readable format for logging, e.g., hex string

@@ -405,15 +405,62 @@ class MailSerializer {
     std::vector<char> buffer;
 
   public:
+    MailSerializer(bool isUDP = true)
+        : isUDP(isUDP) {}
+
     std::vector<char> serialize(const Mail &mail) {
         // Reset buffer for new serialization
         buffer.clear();
 
         // Serialize MessageType
-        buffer.push_back(static_cast<char>(mail.type));
+        if (isUDP) {
+            // Assuming mail.type is a char or can be statically cast to char
+            buffer.push_back(static_cast<char>(mail.type));
+        } else {
+            // String to represent the message type
+            std::string messageType;
+
+            // Determine the message type string
+            switch (mail.type) {
+            case Mail::MessageType::CONFIRM:
+                messageType = "CONFIRM ";
+                break;
+            case Mail::MessageType::AUTH:
+                messageType = "AUTH ";
+                break;
+            case Mail::MessageType::JOIN:
+                messageType = "JOIN ";
+                break;
+            case Mail::MessageType::ERR:
+                messageType = "ERR ";
+                break;
+            case Mail::MessageType::BYE:
+                messageType = "BYE ";
+                break;
+            case Mail::MessageType::MSG:
+                messageType = "MSG ";
+                break;
+            case Mail::MessageType::REPLY:
+                messageType = "REPLY ";
+                break;
+            default:
+                messageType = "ERR ";
+                break;
+            }
+
+            // Insert the messageType into the buffer
+            buffer.insert(buffer.end(), messageType.begin(), messageType.end());
+        }
 
         // Serialize MessageData
         std::visit(*this, mail.data);
+
+        // if TCP swap last space for /r/n
+        if (!isUDP) {
+            buffer.pop_back();
+            buffer.push_back('\r');
+            buffer.push_back('\n');
+        }
 
         return buffer;
     }
@@ -425,19 +472,41 @@ class MailSerializer {
     void operator()(const Mail::AuthMessage &msg) {
         serialize(msg.MessageID);
         serialize(msg.Username);
+        if (!isUDP) {
+            // Correctly insert "AS " into the buffer
+            std::string asStr = "AS ";
+            buffer.insert(buffer.end(), asStr.begin(), asStr.end());
+        }
         serialize(msg.DisplayName);
+        if (!isUDP) {
+            // Correctly insert "USING " into the buffer
+            std::string usingStr = "USING ";
+            buffer.insert(buffer.end(), usingStr.begin(), usingStr.end());
+        }
         serialize(msg.Secret);
     }
 
     void operator()(const Mail::JoinMessage &msg) {
         serialize(msg.MessageID);
         serialize(msg.ChannelID);
+        if (!isUDP) {
+            std::string asStr = "AS ";
+            buffer.insert(buffer.end(), asStr.begin(), asStr.end());
+        }
         serialize(msg.DisplayName);
     }
 
     void operator()(const Mail::ErrorMessage &msg) {
+        if (!isUDP) {
+            std::string asStr = "FROM ";
+            buffer.insert(buffer.end(), asStr.begin(), asStr.end());
+        }
         serialize(msg.MessageID);
         serialize(msg.DisplayName);
+        if (!isUDP) {
+            std::string asStr = "IS ";
+            buffer.insert(buffer.end(), asStr.begin(), asStr.end());
+        }
         serialize(msg.MessageContent);
     }
 
@@ -446,30 +515,68 @@ class MailSerializer {
     }
 
     void operator()(const Mail::TextMessage &msg) {
+        if (!isUDP) {
+            std::string asStr = "FROM ";
+            buffer.insert(buffer.end(), asStr.begin(), asStr.end());
+        }
         serialize(msg.MessageID);
         serialize(msg.DisplayName);
+        if (!isUDP) {
+            std::string asStr = "IS ";
+            buffer.insert(buffer.end(), asStr.begin(), asStr.end());
+        }
         serialize(msg.MessageContent);
     }
 
     void operator()(const Mail::ReplyMessage &msg) {
         serialize(msg.MessageID);
         serialize(msg.Result);
+        if (!isUDP) {
+            std::string asStr = "NULL";
+            if (msg.Result) {
+                asStr = "OK ";
+            } else {
+                asStr = "NOK ";
+            }
+            buffer.insert(buffer.end(), asStr.begin(), asStr.end());
+
+            asStr = "IS ";
+            buffer.insert(buffer.end(), asStr.begin(), asStr.end());
+        }
         serialize(msg.RefMessageID);
         serialize(msg.MessageContent);
     }
 
   private:
+    bool isUDP = true;
+
     void serialize(uint16_t value) {
-        uint16_t bigEndianValue = htons(value); // Convert to big endian
-        auto data = reinterpret_cast<const char *>(&bigEndianValue);
-        buffer.insert(buffer.end(), data, data + sizeof(bigEndianValue));
-        std::cout << "Serialized int (big endian): " << value << std::endl;
+        switch (isUDP) {
+        case true: {
+            uint16_t bigEndianValue = htons(value); // Convert to big endian
+            auto data = reinterpret_cast<const char *>(&bigEndianValue);
+            buffer.insert(buffer.end(), data, data + sizeof(bigEndianValue));
+            std::cout << "Serialized int (big endian): " << value << std::endl;
+            break;
+        }
+        case false: {
+            break;
+        }
+        }
     }
 
     void serialize(const std::string &str) {
-        buffer.insert(buffer.end(), str.begin(), str.end());
-        buffer.push_back('\0'); // Null-terminate string
-        std::cout << "Serialized string: " << str << std::endl;
+        switch (isUDP) {
+        case true:
+            buffer.insert(buffer.end(), str.begin(), str.end());
+            buffer.push_back('\0'); // Null-terminate string
+            std::cout << "Serialized string: " << str << std::endl;
+            break;
+        case false:
+            buffer.insert(buffer.end(), str.begin(), str.end());
+            buffer.push_back(' '); // sp
+            std::cout << "Serialized string: " << str << std::endl;
+        }
     }
 };
 
