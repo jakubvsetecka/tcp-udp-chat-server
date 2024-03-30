@@ -25,9 +25,9 @@ int main(int argc, char **argv) {
     // Step 2: Get file descriptors from the Pipe object. (For demonstration, we're directly using myPipe here)
     int readFd = myPipe.getReadFd(); // Assuming Pipe class has getReadFd method.
 
-    Pipe toSendPipe(fdType::ToSendPipe);             // Create a Pipe instance named ToSendPipe
-    int readMailFd = toSendPipe.getReadFd();         // Get the read file descriptor of ToSendPipe
-    MailBox mailbox(ProtocolType::UDP, &toSendPipe); // Create a MailBox instance
+    Pipe toSendPipe(fdType::ToSendPipe);     // Create a Pipe instance named ToSendPipe
+    int readMailFd = toSendPipe.getReadFd(); // Get the read file descriptor of ToSendPipe
+    MailBox mailbox(args.type, &toSendPipe); // Create a MailBox instance
 
     Pipe signalPipe(fdType::SignalPipe);   // Create a Pipe instance named SignalPipe
     int signalFd = signalPipe.getReadFd(); // singalFd is a global variable

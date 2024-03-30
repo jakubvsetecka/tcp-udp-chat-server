@@ -288,9 +288,7 @@ class MailBox {
         return true;
     }
 
-    bool writeMail(char **buffer, Mail &mail) {
-        printBlue("Writing mail");
-
+    bool writeUDPMail(char **buffer, Mail &mail) {
         const char *current = *buffer;
         mail.type = static_cast<Mail::MessageType>(static_cast<unsigned char>(*current));
         current++;
@@ -302,8 +300,13 @@ class MailBox {
             break;
         case Mail::MessageType::BYE:
             printYellow("Bye message");
-            mail.data = Mail::ByeMessage{readUInt16(&current)};
-            mail.addToMailQueue = true;
+            if (delivery_service == ProtocolType::TCP) {
+                mail.data = Mail::ByeMessage{readUInt16(&current)};
+                mail.addToMailQueue = false;
+            } else {
+                mail.data = Mail::ByeMessage{readUInt16(&current)};
+                mail.addToMailQueue = true;
+            }
             break;
         case Mail::MessageType::ERR: {
             printYellow("Error message");
@@ -366,6 +369,121 @@ class MailBox {
 
         return true;
     }
+
+    bool writeTCPMail(char **buffer, Mail &mail) {
+        std::string str(*buffer); // Construct a string from the char* buffer.
+        std::istringstream iss(str);
+        std::string msgType;
+
+        iss >> msgType;
+        printBlue("Message type: " + msgType);
+
+        if (msgType == "BYE") {
+            mail.type = Mail::MessageType::BYE;
+        } else if (msgType == "ERR") {
+            Mail::ErrorMessage errMsg;
+            std::string from;
+            std::string is;
+
+            iss >> from >> errMsg.DisplayName >> is;
+            std::getline(iss, errMsg.MessageContent);                // Use getline to read the rest of the line
+            errMsg.MessageContent = errMsg.MessageContent.substr(1); // Remove leading space
+
+            if (from != "FROM" || is != "IS" || errMsg.MessageContent.empty()) {
+                printRed("Invalid message format");
+                return false;
+            }
+
+            mail.type = Mail::MessageType::ERR;
+            mail.data = errMsg;
+            mail.addToMailQueue = true;
+
+        } else if (msgType == "REPLY") {
+            std::cout << "Reply message" << std::endl;
+            Mail::ReplyMessage replyMsg;
+            std::string response;
+            std::string is;
+
+            iss >> response >> is;
+            std::getline(iss, replyMsg.MessageContent);                  // Use getline to read the rest of the line
+            replyMsg.MessageContent = replyMsg.MessageContent.substr(1); // Remove leading space
+
+            if ((response != "OK" && response != "NOK") || is != "IS") {
+                printRed("Invalid message format");
+                printRed("Response: " + response + ", IS: " + is + ", MessageContent: " + replyMsg.MessageContent);
+                return false;
+            }
+
+            if (response == "OK") {
+                replyMsg.Result = true;
+            } else {
+                replyMsg.Result = false;
+            }
+
+            mail.type = Mail::MessageType::REPLY;
+            mail.data = replyMsg;
+            mail.addToMailQueue = true;
+        } else if (msgType == "AUTH") {
+            Mail::AuthMessage authMsg;
+            std::string as;
+            std::string usg;
+
+            iss >> authMsg.Username >> as >> authMsg.Secret >> usg >> authMsg.DisplayName;
+            if (as != "AS" || usg != "USING") {
+                printRed("Invalid message format");
+                return false;
+            }
+
+            mail.type = Mail::MessageType::AUTH;
+            mail.data = authMsg;
+            mail.addToMailQueue = true;
+
+        } else if (msgType == "JOIN") {
+            Mail::JoinMessage joinMsg;
+            std::string as;
+
+            iss >> joinMsg.ChannelID >> as >> joinMsg.DisplayName;
+            if (as != "AS") {
+                printRed("Invalid message format");
+                return false;
+            }
+
+            mail.type = Mail::MessageType::JOIN;
+            mail.data = joinMsg;
+            mail.addToMailQueue = true;
+        } else if (msgType == "MSG") {
+            Mail::TextMessage srvMsg;
+            std::string from;
+            std::string is;
+
+            iss >> from >> srvMsg.DisplayName >> is;
+            std::getline(iss, srvMsg.MessageContent);                // Use getline to read the rest of the line
+            srvMsg.MessageContent = srvMsg.MessageContent.substr(1); // Remove leading space
+
+            if (from != "FROM" || is != "IS") {
+                printRed("Invalid message format");
+                return false;
+            }
+
+            mail.type = Mail::MessageType::MSG;
+            mail.data = srvMsg;
+            mail.addToMailQueue = true;
+        } else {
+            printRed("Invalid message type");
+            return false;
+        }
+        return true;
+    }
+
+    bool writeMail(char **buffer, Mail &mail) {
+        printBlue("Writing mail");
+        if (delivery_service == ProtocolType::UDP) {
+            return writeUDPMail(buffer, mail);
+        } else {
+            return writeTCPMail(buffer, mail);
+        }
+    }
+
     bool writeMail(Mail::MessageType msgType, Mail &mail, int refMessageID = -1) {
 
         switch (msgType) {

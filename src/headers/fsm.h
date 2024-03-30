@@ -64,6 +64,10 @@ class FSM {
                         state = AUTH;
                     }
                     break;
+                case Mail::MessageType::AUTH:
+                    mailbox.sendMail(mail);
+                    state = AUTH;
+                    break;
                 case Mail::MessageType::ERR:
                     printYellow("State: AUTH\n");
                     mailbox.writeMail(Mail::MessageType::BYE, mail);
