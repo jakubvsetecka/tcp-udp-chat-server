@@ -10,13 +10,17 @@
 #include <unistd.h> // For sleep()
 
 int writeSignalFd;
+bool verbose;
 
-int main(int argc, char **argv) {
-
+int runMain(int argc, char **argv) {
     ArgumentParser args(argc, argv);
+    verbose = args.verbose;
 
     NetworkConnection connection(args.type, args.ip, args.port, args.timeout, args.retries);
-    connection.openConnection();
+    if (connection.openConnection() == false) {
+        std::cerr << "Failed to open connection" << std::endl;
+        return -1;
+    }
     int sockfd = connection.getFdsocket();
 
     // Step 1: Create a Pipe object for StdinListener.
@@ -50,7 +54,7 @@ int main(int argc, char **argv) {
     FSM fsm(State::START, mailbox);
     fsm.run();
 
-    std::cout << "Main thread is running" << std::endl;
+    printWhite("Main thread is running");
 
     myStdinListener.stop(); // Stop the listener thread
     myListener.stop();      // Stop the listener thread
@@ -62,4 +66,13 @@ int main(int argc, char **argv) {
     connection.closeConnection();
 
     return 0;
+}
+
+int main(int argc, char **argv) {
+    try {
+        return runMain(argc, argv);
+    } catch (const std::runtime_error &e) {
+        std::cerr << "ERR: " << e.what() << std::endl;
+        return -1;
+    }
 }

@@ -33,7 +33,7 @@ class FSM {
                     state = AUTH;
                     break;
                 case Mail::MessageType::ERR:
-                    std::cout << "Error: " << std::endl;
+                    printYellow("State: START: ERR");
                     if (mail.sigint) {
                         mailbox.writeMail(Mail::MessageType::BYE, mail);
                         mailbox.sendMail(mail);
@@ -57,10 +57,10 @@ class FSM {
                 switch (mail.type) {
                 case Mail::MessageType::REPLY:
                     if (std::get<Mail::ReplyMessage>(mail.data).Result == true) {
-                        std::cout << "Authentication successful" << std::endl;
+                        std::cout << "Success: " << std::get<Mail::ReplyMessage>(mail.data).MessageContent << std::endl;
                         state = OPEN;
                     } else {
-                        std::cout << "Authentication failed" << std::endl;
+                        std::cout << "Failure: " << std::get<Mail::ReplyMessage>(mail.data).MessageContent << std::endl;
                         state = AUTH;
                     }
                     break;
@@ -91,7 +91,7 @@ class FSM {
                         mailbox.sendMail(mail);
                     } else {
                         const auto &msg = std::get<Mail::TextMessage>(mail.data);
-                        std::cout << "DisplayName: " << msg.DisplayName << ", MessageContent: " << msg.MessageContent << std::endl;
+                        std::cout << msg.DisplayName << ": " << msg.MessageContent << std::endl;
                     }
                     break;
                 case Mail::MessageType::REPLY:

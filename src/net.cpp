@@ -43,7 +43,7 @@ bool TcpProtocol::openConnection() {
         return false;
     }
 
-    std::cout << "Connected successfully to " << ip << " on port " << port << std::endl;
+    printGreen("TCP socket created: " + std::to_string(sockfd) + " on port " + std::to_string(port));
     return true;
 }
 
@@ -52,7 +52,7 @@ bool TcpProtocol::closeConnection() {
         close(sockfd);
         sockfd = -1;
     }
-    std::cout << "Connection closed" << std::endl;
+    printRed("Connection closed");
     return true;
 }
 
@@ -155,7 +155,7 @@ bool UdpProtocol::openConnection() {
         return false;
     }
 
-    std::cout << "Connected successfully to " << ip << " on port " << port << std::endl;
+    printGreen("UDP socket created: " + std::to_string(sockfd) + " on port " + std::to_string(port));
     return true;
 }
 
@@ -164,7 +164,7 @@ bool UdpProtocol::closeConnection() {
         close(sockfd);
         sockfd = -1;
     }
-    std::cout << "Connection closed" << std::endl;
+    printRed("Connection closed");
     return true;
 }
 
@@ -216,11 +216,11 @@ bool UdpProtocol::receiveData(char *buffer) {
 
     // Extract and print the sender's port number
     unsigned int senderPort = ntohs(fromAddr.sin_port);
-    std::cout << "Received packet from port: " << senderPort << std::endl;
+    printWhite("Received data: " + std::string(buffer) + " from " + ip + " on port " + std::to_string(port));
 
     if (senderPort != port) {
         port = senderPort;
-        std::cout << "Port changed to: " << port << std::endl;
+        printWhite("Port changed to: " + std::to_string(port));
         this->connectToServer();
     }
 

@@ -42,7 +42,7 @@ class Listener {
                 return false;
             }
         } else if (count == 0) {
-            std::cout << "Pipe closed" << std::endl;
+            printRed("Pipe closed");
             close(efd);
             return false;
         } else {
@@ -135,7 +135,7 @@ class Listener {
                 if (mail.getMessageID() <= mailbox->srvMsgId) { // Message has already been received
                     printRed("Message has already been received");
                     connection->sendData(confirmMail);
-                    std::cout << "Sent confirm" << std::endl;
+                    printGreen("Sent confirm for message: " + std::to_string(mail.getMessageID()) + " with srvMsgId: " + std::to_string(mailbox->srvMsgId) + " and refAuthId: " + std::to_string(refAuthId) + " and refMsgId: " + std::to_string(refMsgId));
                     return true;
                 }
                 if (refAuthId != mail.getRefMessageID()) {
@@ -166,7 +166,7 @@ class Listener {
             }
 
             connection->sendData(confirmMail);
-            std::cout << "Sent confirm" << std::endl;
+            printGreen("Sent confirm for message: " + std::to_string(mail.getMessageID()) + " with srvMsgId: " + std::to_string(mailbox->srvMsgId) + " and refAuthId: " + std::to_string(refAuthId) + " and refMsgId: " + std::to_string(refMsgId));
         }
 
         mailbox->addMail(mail);
@@ -184,16 +184,17 @@ class Listener {
                 return false;
             }
         } else if (count == 0) {
-            std::cout << "Pipe closed" << std::endl;
+            printRed("Pipe closed");
             close(efd);
             return false;
         }
         Mail mail = mailbox->getOutgoingMail();
-        mail.printMail();
+        if (verbose) {
+            printGreen("Sending mail: ");
+            mail.printMail();
+        }
 
         connection->sendData(mail);
-
-        mail.printMail();
 
         // For UDP
         if (protocolType == ProtocolType::UDP) {
@@ -224,7 +225,7 @@ class Listener {
                 return false;
             }
         } else if (count == 0) {
-            std::cout << "Pipe closed" << std::endl;
+            printRed("Pipe closed");
             close(efd);
             return false;
         }
@@ -238,108 +239,108 @@ class Listener {
     }
 
     void runListener() {
-        int efd = epoll_create1(0);
-        if (efd == -1) {
-            std::cerr << "Failed to create epoll file descriptor" << std::endl;
-            return;
-        }
-
-        // Register file descriptors with epoll
-        registerFds(fdMap, efd);
-
-        int timeout = -1; // Wait indefinitely
-
-        StopWatch stopWatch;
-
-        struct epoll_event events[10]; // Buffer where events are returned
-        while (keepRunning.load() && (!sentBye || !receivedConfirm)) {
-            // TODO: Remove this comment: LMAOOO THIS IS UGLY AS FUCK
-            if (!receivedConfirm && toSendRegistered) {
-                unregisterFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
-                toSendRegistered = false;
-            } else if (receivedConfirm && !toSendRegistered) {
-                registerFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
-                toSendRegistered = true;
-            }
-
-            if (!receivedConfirm) {
-                timeout = connection->getTimeout() - stopWatch.duration();
-            } else {
-                timeout = -1;
-            }
-
-            std::cout << "setting timer\n";
-            stopWatch.start();
-            std::cout << "waiting for fds for: " << timeout << " mili-seconds\n";
-            int n = epoll_wait(efd, events, 10, timeout);
-            stopWatch.stop();
-
-            if (n == 0 && retries >= connection->getRetries()) { // Time has ran out
-                std::cerr << "Error: Server not responding" << std::endl;
+        try {
+            int efd = epoll_create1(0);
+            if (efd == -1) {
+                std::cerr << "Failed to create epoll file descriptor" << std::endl;
                 return;
-            } else if (n == 0) { // You have few more tries
-                stopWatch.reset();
-                retries++;
-                printRed("Awaiting confirmation failed. Retrying... (retries left: " + std::to_string(connection->getRetries() - retries + 1) + ")");
-
-                connection->sendData(confMail);
             }
 
-            for (int i = 0; i < n; i++) {
-                std::cout << "Event on FD: " << events[i].data.fd << std::endl;
+            // Register file descriptors with epoll
+            registerFds(fdMap, efd);
 
-                int activeFd = events[i].data.fd;
+            int timeout = -1; // Wait indefinitely
 
-                // Look up the type of the active file descriptor
-                // Must be EPOLLIN
-                auto it = fdMap.find(activeFd);
-                if (it != fdMap.end() && EPOLLIN) {
-                    fdType type = it->second;
+            StopWatch stopWatch;
 
-                    char buffer[1024] = {0};
+            struct epoll_event events[10]; // Buffer where events are returned
+            while (keepRunning.load() && (!sentBye || !receivedConfirm)) {
+                // TODO: Remove this comment: LMAOOO THIS IS UGLY AS FUCK
+                if (!receivedConfirm && toSendRegistered) {
+                    unregisterFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
+                    toSendRegistered = false;
+                } else if (receivedConfirm && !toSendRegistered) {
+                    registerFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
+                    toSendRegistered = true;
+                }
 
-                    switch (type) {
-                    case StdinPipe:
-                        printBlue("StdinPipe");
-                        if (!listenStdin(activeFd, efd)) {
-                            printRed("Failed to listen to stdin\n");
-                            return;
+                if (!receivedConfirm) {
+                    timeout = connection->getTimeout() - stopWatch.duration();
+                } else {
+                    timeout = -1;
+                }
+
+                printWhite("setting timer");
+                stopWatch.start();
+                printWhite("waiting for fds for: " + std::to_string(timeout) + " mili-seconds");
+                int n = epoll_wait(efd, events, 10, timeout);
+                stopWatch.stop();
+
+                if (n == 0 && retries >= connection->getRetries()) { // Time has ran out
+                    throw std::runtime_error("Server not responding");
+                } else if (n == 0) { // You have few more tries
+                    stopWatch.reset();
+                    retries++;
+                    printWhite("Awaiting confirmation failed. Retrying... (retries left: " + std::to_string(connection->getRetries() - retries + 1) + ")");
+
+                    connection->sendData(confMail);
+                }
+
+                for (int i = 0; i < n; i++) {
+                    printWhite("Event on FD: " + std::to_string(events[i].data.fd));
+
+                    int activeFd = events[i].data.fd;
+
+                    // Look up the type of the active file descriptor
+                    // Must be EPOLLIN
+                    auto it = fdMap.find(activeFd);
+                    if (it != fdMap.end() && EPOLLIN) {
+                        fdType type = it->second;
+
+                        char buffer[1024] = {0};
+
+                        switch (type) {
+                        case StdinPipe:
+                            printBlue("StdinPipe");
+                            if (!listenStdin(activeFd, efd)) {
+                                throw std::runtime_error("Failed to listen to stdin");
+                            }
+                            break;
+                        case SocketPipe:
+                            printBlue("SocketPipe");
+                            if (!listenSocket(buffer, efd)) {
+                                throw std::runtime_error("Failed to listen to socket");
+                            }
+                            break;
+                        case ToSendPipe: {
+                            printBlue("ToSendPipe");
+                            if (!listenToSendPipe(activeFd, efd)) {
+                                throw std::runtime_error("Failed to listen to send pipe");
+                            }
+                            break;
                         }
-                        break;
-                    case SocketPipe:
-                        printBlue("SocketPipe");
-                        if (!listenSocket(buffer, efd)) {
-                            printRed("Failed to listen to socket\n");
-                            return;
+                        case SignalPipe:
+                            printBlue("SignalPipe");
+                            if (!listenSignal(activeFd, efd)) {
+                                throw std::runtime_error("Failed to listen to signal pipe");
+                            }
+                            break;
+                        case Unknown:
+                            std::cerr << "Unknown file descriptor type" << std::endl;
+                            break;
+                            // ... other cases ...
                         }
-                        break;
-                    case ToSendPipe: {
-                        printBlue("ToSendPipe");
-                        if (!listenToSendPipe(activeFd, efd)) {
-                            printRed("Failed to listen to send pipe\n");
-                            return;
-                        }
-                        break;
-                    }
-                    case SignalPipe:
-                        printBlue("SignalPipe");
-                        if (!listenSignal(activeFd, efd)) {
-                            printRed("Failed to listen to signal pipe\n");
-                            return;
-                        }
-                        break;
-                    case Unknown:
-                        std::cerr << "Unknown file descriptor type" << std::endl;
-                        break;
-                        // ... other cases ...
                     }
                 }
-            }
 
-            // Send or expect CONFIRM based on Flags
-            printBlue("keepRunning: " + std::to_string(keepRunning.load()) + ", receivedConfirm: " + std::to_string(receivedConfirm) + ", sentBye: " + std::to_string(sentBye));
+                // Send or expect CONFIRM based on Flags
+                printBlue("keepRunning: " + std::to_string(keepRunning.load()) + ", receivedConfirm: " + std::to_string(receivedConfirm) + ", sentBye: " + std::to_string(sentBye));
+            }
+            close(efd);
+        } catch (const std::runtime_error &e) {
+            std::cerr << "ERR: " << e.what() << std::endl;
+            exit(1);
         }
-        close(efd);
     }
 
   public:
@@ -391,7 +392,7 @@ class Listener {
     }
 
     static void handleSignal(int signum) {
-        std::cout << "Interrupt signal (" << signum << ") received.\n";
+        printRed("Interrupt signal (" + std::to_string(signum) + ") received.");
         write(writeSignalFd, "1", 1);
     }
 };
@@ -446,7 +447,7 @@ class StdinListener {
             keepRunning.store(false);
             listenerThread.join();
         }
-        std::cout << "\033[1;31mStdInListener destroyed\033[0m" << std::endl;
+        printRed("StdInListener destroyed");
     }
 
     void stop() {

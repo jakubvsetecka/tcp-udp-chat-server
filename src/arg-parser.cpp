@@ -19,7 +19,7 @@ void ArgumentParser::print() {
 }
 
 void ArgumentParser::parse() {
-    while ((opt = getopt(argc, argv, "t:s:p:d:r:h")) != -1) {
+    while ((opt = getopt(argc, argv, "t:s:p:d:r:hv")) != -1) {
         switch (opt) {
         case 't':
             if (strcmp(optarg, "tcp") == 0) {
@@ -46,6 +46,9 @@ void ArgumentParser::parse() {
             break;
         case 'h':
             usage();
+            break;
+        case 'v':
+            verbose = true; // handle verbose flag
             break;
         case '?':
         default:

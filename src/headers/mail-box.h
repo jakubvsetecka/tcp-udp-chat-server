@@ -399,7 +399,7 @@ class MailBox {
             mail.addToMailQueue = true;
 
         } else if (msgType == "REPLY") {
-            std::cout << "Reply message" << std::endl;
+            printYellow("Reply message");
             Mail::ReplyMessage replyMsg;
             std::string response;
             std::string is;
@@ -674,7 +674,7 @@ class MailSerializer {
             uint16_t bigEndianValue = htons(value); // Convert to big endian
             auto data = reinterpret_cast<const char *>(&bigEndianValue);
             buffer.insert(buffer.end(), data, data + sizeof(bigEndianValue));
-            std::cout << "Serialized int (big endian): " << value << std::endl;
+            printBlue("Serialized int (big endian): " + std::to_string(value));
             break;
         }
         case false: {
@@ -688,12 +688,12 @@ class MailSerializer {
         case true:
             buffer.insert(buffer.end(), str.begin(), str.end());
             buffer.push_back('\0'); // Null-terminate string
-            std::cout << "Serialized string: " << str << std::endl;
+            printBlue("Serialized string: " + str);
             break;
         case false:
             buffer.insert(buffer.end(), str.begin(), str.end());
             buffer.push_back(' '); // sp
-            std::cout << "Serialized string: " << str << std::endl;
+            printBlue("Serialized string: " + str);
         }
     }
 };
