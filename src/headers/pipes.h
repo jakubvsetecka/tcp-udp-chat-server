@@ -27,7 +27,7 @@ class Pipe {
         : type(type) {
         int fd[2];
         if (::pipe(fd) < 0) { // Use the global namespace (::) to call the POSIX pipe
-            std::cerr << "Failed to create pipe\n";
+            throw std::runtime_error("Failed to create pipe");
         } else {
             read_fd = fd[0];
             write_fd = fd[1];
@@ -53,7 +53,7 @@ class Pipe {
         if (write_fd != -1) {
             ssize_t bytes_written = ::write(write_fd, data.c_str(), data.size());
             if (bytes_written == -1) {
-                std::cerr << "Failed to write to pipe: " << type << std::endl;
+                throw std::runtime_error("Failed to write to pipe");
             }
         }
     }
@@ -82,7 +82,7 @@ class PipeManager {
         if (it != pipes.end()) {
             it->second.write(data);
         } else {
-            std::cerr << "Pipe not found: " << type << std::endl;
+            throw std::runtime_error("Pipe not found");
         }
     }
 };

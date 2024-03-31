@@ -16,6 +16,15 @@
 #include "net-utils.h"
 #include "stopwatch.h"
 
+#include <arpa/inet.h>  // For inet_pton()
+#include <cstring>      // For memset
+#include <iostream>     // For std::cerr
+#include <netdb.h>      // For getaddrinfo, freeaddrinfo, addrinfo
+#include <netinet/in.h> // For sockaddr_in, htons()
+#include <sys/socket.h> // For socket(), connect()
+#include <sys/types.h>  // For types used in sys/socket.h
+#include <unistd.h>     // For close()
+
 #include <iomanip>
 
 //=================================NetworkProtocol=============================================

@@ -45,10 +45,10 @@ class FSM {
                     }
                     break;
                 case Mail::MessageType::MSG:
-                    std::cout << "ERR: Unexpected message: " << std::get<Mail::TextMessage>(mail.data).MessageContent << std::endl;
+                    std::cerr << "ERR: Unexpected message: " << std::get<Mail::TextMessage>(mail.data).MessageContent << std::endl;
                     break;
                 case Mail::MessageType::JOIN:
-                    std::cout << "ERR: Unexpected message " << std::endl;
+                    std::cerr << "ERR: Unexpected message " << std::endl;
                     break;
                 default:
                     mailbox.writeMail(Mail::MessageType::ERR, mail);
@@ -63,10 +63,8 @@ class FSM {
                 switch (mail.type) {
                 case Mail::MessageType::REPLY:
                     if (std::get<Mail::ReplyMessage>(mail.data).Result == true) {
-                        std::cout << "Success: " << std::get<Mail::ReplyMessage>(mail.data).MessageContent << std::endl;
                         state = OPEN;
                     } else {
-                        std::cout << "Failure: " << std::get<Mail::ReplyMessage>(mail.data).MessageContent << std::endl;
                         state = AUTH;
                     }
                     break;
@@ -81,10 +79,10 @@ class FSM {
                     state = END;
                     break;
                 case Mail::MessageType::MSG:
-                    std::cout << "ERR: Unexpected message: " << std::get<Mail::TextMessage>(mail.data).MessageContent << std::endl;
+                    std::cerr << "ERR: Unexpected message: " << std::get<Mail::TextMessage>(mail.data).MessageContent << std::endl;
                     break;
                 case Mail::MessageType::JOIN:
-                    std::cout << "ERR: Unexpected message " << std::endl;
+                    std::cerr << "ERR: Unexpected message. " << std::endl;
                     break;
                 default:
                     mailbox.writeMail(Mail::MessageType::ERR, mail);
@@ -101,9 +99,6 @@ class FSM {
                     printBrown("State: OPEN, Mail: MSG\n");
                     if (std::get<Mail::TextMessage>(mail.data).ToSend == true) {
                         mailbox.sendMail(mail);
-                    } else {
-                        const auto &msg = std::get<Mail::TextMessage>(mail.data);
-                        std::cout << msg.DisplayName << ": " << msg.MessageContent << std::endl;
                     }
                     break;
                 case Mail::MessageType::REPLY:
@@ -125,6 +120,11 @@ class FSM {
                     mailbox.sendMail(mail);
                     break;
                     state = OPEN;
+                case Mail::MessageType::AUTH:
+                    printBrown("State: OPEN, Mail: AUTH\n");
+                    std::cerr << "ERR: User already authenticated." << std::endl;
+                    state = OPEN;
+                    break;
                 default:
                     printBrown("State: OPEN, Mail: DEFAULT\n");
                     mailbox.writeMail(Mail::MessageType::ERR, mail);
@@ -147,7 +147,7 @@ class FSM {
             default:
                 printYellow("State: DEFAULT\n");
                 // handle unexpected state
-                std::cerr << "Unexpected state" << std::endl;
+                throw std::runtime_error("Unexpected state");
                 break;
             }
         }

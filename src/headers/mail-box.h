@@ -9,12 +9,68 @@
 #include <iostream>
 #include <mutex>
 #include <queue>
+#include <regex>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <variant>
 
 class Mail {
   public:
+    static void sanitizeString(std::string &str) {
+        // Remove ASCII control characters from the beginning
+        auto start = std::find_if(str.begin(), str.end(), [](unsigned char c) {
+            return c >= 32;
+        });
+        str.erase(str.begin(), start);
+
+        // Check and remove "\r\n" from the end if present
+        if (str.size() >= 1 && str.substr(str.size() - 1) == "\r") {
+            str.erase(str.size() - 1);
+        }
+    }
+    // Validates a string using a regex pattern and length constraints
+    static void validateString(const std::string &value, const std::regex &pattern,
+                               std::size_t maxLength, const std::string &fieldName) {
+        if (value.length() > maxLength || !std::regex_match(value, pattern)) {
+            std::stringstream hexStream;
+
+            // Convert each character in the string to its hex representation
+            for (unsigned char c : value) {
+                hexStream << std::hex << static_cast<int>(c) << " ";
+            }
+
+            // Construct and throw the runtime_error with the hex values included
+            throw std::runtime_error(fieldName + " is invalid." + " value: [" + value + "] Hex: [" + hexStream.str() + "]");
+        }
+    }
+
+    // Validation implementations for different fields
+    static void validateUsername(const std::string &username) {
+        std::regex pattern("[A-Za-z0-9\\-]{1,20}");
+        validateString(username, pattern, 20, "Username");
+    }
+
+    static void validateChannelID(const std::string &channelID) {
+        std::regex pattern("[A-Za-z0-9\\-\\.]{1,20}");
+        validateString(channelID, pattern, 20, "Username");
+    }
+
+    static void validateSecret(const std::string &secret) {
+        std::regex pattern("[A-Za-z0-9\\-]{1,128}");
+        validateString(secret, pattern, 128, "Secret");
+    }
+
+    static void validateDisplayName(const std::string &displayName) {
+        std::regex pattern("[\\x21-\\x7E]{1,20}");
+        validateString(displayName, pattern, 20, "DisplayName");
+    }
+
+    static void validateMessageContent(const std::string &messageContent) {
+        std::regex pattern("[\\x20-\\x7E]{1,1400}");
+        validateString(messageContent, pattern, 1400, "MessageContent");
+    }
+
     enum class MessageType {
         AUTH = 0x02,
         JOIN = 0x03,
@@ -23,6 +79,7 @@ class Mail {
         MSG = 0x04,
         REPLY = 0x01,
         CONFIRM = 0x00,
+        UNKNOWN = 0x05
     };
 
     struct ConfirmMessage {
@@ -34,18 +91,38 @@ class Mail {
         std::string Username;
         std::string DisplayName;
         std::string Secret;
+
+        AuthMessage(uint16_t id, const std::string &username,
+                    const std::string &displayName, const std::string &secret)
+            : MessageID(id), Username(username), DisplayName(displayName), Secret(secret) {
+            validateUsername(username);
+            validateDisplayName(displayName);
+            validateSecret(secret);
+        }
     };
 
     struct JoinMessage {
         int MessageID;
         std::string ChannelID;
         std::string DisplayName;
+
+        JoinMessage(int id, const std::string &channelID, const std::string &displayName)
+            : MessageID(id), ChannelID(channelID), DisplayName(displayName) {
+            validateChannelID(channelID);
+            validateDisplayName(displayName);
+        }
     };
 
     struct ErrorMessage {
-        uint MessageID;
+        int MessageID;
         std::string DisplayName;
         std::string MessageContent;
+
+        ErrorMessage(uint id, const std::string &displayName, const std::string &messageContent)
+            : MessageID(id), DisplayName(displayName), MessageContent(messageContent) {
+            validateDisplayName(displayName);
+            validateMessageContent(messageContent);
+        }
     };
 
     struct ByeMessage {
@@ -57,6 +134,12 @@ class Mail {
         int MessageID;
         std::string DisplayName;
         std::string MessageContent;
+
+        TextMessage(int id, const std::string &displayName, const std::string &messageContent)
+            : MessageID(id), DisplayName(displayName), MessageContent(messageContent) {
+            validateDisplayName(displayName);
+            validateMessageContent(messageContent);
+        }
     };
 
     struct ReplyMessage {
@@ -64,6 +147,18 @@ class Mail {
         bool Result; // true for REPLY, false for !REPLY
         int RefMessageID;
         std::string MessageContent;
+
+        ReplyMessage(int id, bool result, int refMessageID, const std::string &messageContent)
+            : MessageID(id), Result(result), RefMessageID(refMessageID), MessageContent(messageContent) {
+            validateMessageContent(messageContent);
+        }
+    };
+
+    struct UnknownMessage {
+        int MessageID;
+
+        UnknownMessage(int id)
+            : MessageID(id) {}
     };
 
     using MessageData = std::variant<
@@ -73,7 +168,8 @@ class Mail {
         ErrorMessage,
         ByeMessage,
         TextMessage,
-        ReplyMessage>;
+        ReplyMessage,
+        UnknownMessage>;
 
     MessageType type;
     MessageData data;
@@ -90,7 +186,8 @@ class Mail {
                                  std::is_same_v<T, Mail::ErrorMessage> ||
                                  std::is_same_v<T, Mail::ByeMessage> ||
                                  std::is_same_v<T, Mail::TextMessage> ||
-                                 std::is_same_v<T, Mail::ReplyMessage>) {
+                                 std::is_same_v<T, Mail::ReplyMessage> ||
+                                 std::is_same_v<T, Mail::UnknownMessage>) {
                 return msg.MessageID;
             } else {
                 // Handle the case where neither MessageID nor RefMessageID exist
@@ -134,6 +231,8 @@ class Mail {
                 std::cout << "TEXT: MessageID = " << arg.MessageID << ", DisplayName = " << arg.DisplayName << ", MessageContent = " << arg.MessageContent << std::endl;
             } else if constexpr (std::is_same_v<T, ReplyMessage>) {
                 std::cout << "REPLY: MessageID = " << arg.MessageID << ", Result = " << (arg.Result ? "Success" : "Failure") << ", RefMessageID = " << arg.RefMessageID << ", MessageContent = " << arg.MessageContent << std::endl;
+            } else if constexpr (std::is_same_v<T, UnknownMessage>) {
+                std::cout << "UNKNOWN: MessageID = " << arg.MessageID << std::endl;
             }
         },
                    data);
@@ -180,6 +279,20 @@ class MailBox {
         cv.wait(lock, [this] { return !incomingMails.empty(); });
         Mail mail = incomingMails.front();
         incomingMails.pop();
+
+        if (mail.type == Mail::MessageType::ERR) {
+            const auto &err = std::get<Mail::ErrorMessage>(mail.data);
+            std::cerr << "ERR FROM " << err.DisplayName << ": " << err.MessageContent << std::endl;
+        } else if (mail.type == Mail::MessageType::MSG) {
+            const auto &msg = std::get<Mail::TextMessage>(mail.data);
+            if (!msg.ToSend) {
+                std::cout << msg.DisplayName << ": " << msg.MessageContent << std::endl;
+            }
+        } else if (mail.type == Mail::MessageType::REPLY) {
+            const auto &reply = std::get<Mail::ReplyMessage>(mail.data);
+            std::cerr << (reply.Result ? "Success" : "Failure") << ": " << reply.MessageContent << std::endl;
+        }
+
         return mail;
     }
 
@@ -245,16 +358,18 @@ class MailBox {
         // printBlue(std::string("Command: ") + command);
 
         if (command == "/auth") {
-            Mail::AuthMessage authMsg;
-            iss >> authMsg.Username >> authMsg.Secret >> authMsg.DisplayName;
+            std::string username, secret, dN;
+            iss >> username >> secret >> dN;
+            Mail::AuthMessage authMsg(sequenceUDPNumber, username, dN, secret);
             printYellow(std::string("Auth: ") + authMsg.Username + ", " + authMsg.Secret + ", " + authMsg.DisplayName);
             mail.type = Mail::MessageType::AUTH;
             mail.data = authMsg;
             mail.addToMailQueue = true;
             displayName = authMsg.DisplayName;
         } else if (command == "/join") {
-            Mail::JoinMessage joinMsg;
-            iss >> joinMsg.ChannelID;
+            std::string channelID;
+            iss >> channelID;
+            Mail::JoinMessage joinMsg(sequenceUDPNumber, channelID, displayName);
             printYellow(std::string("Join: ") + joinMsg.ChannelID + ", " + joinMsg.DisplayName);
             joinMsg.DisplayName = displayName;
             mail.type = Mail::MessageType::JOIN;
@@ -268,6 +383,11 @@ class MailBox {
             displayName = newDisplayName;
         } else if (command == "/help") {
             printYellow("Help");
+            std::cout << "Supported commands:" << std::endl;
+            std::cout << "/auth {Username} {Secret} {DisplayName} - Authenticates the user with the server using the provided username and secret. Sets the local display name to the provided value." << std::endl;
+            std::cout << "/join {ChannelID} - Joins the channel with the specified ID." << std::endl;
+            std::cout << "/rename {DisplayName} - Locally changes the display name of the user. This name is used in subsequent messages or commands that require a display name." << std::endl;
+            std::cout << "/help - Prints out this help message showing supported commands and their parameters." << std::endl;
             mail.addToMailQueue = false;
         } else if (command == "/print") {
             printYellow("Print");
@@ -275,11 +395,8 @@ class MailBox {
             mail.addToMailQueue = false;
         } else {
             mail.type = Mail::MessageType::MSG;
-            Mail::TextMessage textMsg;
+            Mail::TextMessage textMsg(sequenceUDPNumber, displayName, line);
             textMsg.ToSend = true;
-            textMsg.MessageID = sequenceUDPNumber;
-            textMsg.DisplayName = displayName;
-            textMsg.MessageContent = line;
             mail.data = textMsg;
             mail.addToMailQueue = true;
 
@@ -288,7 +405,8 @@ class MailBox {
         return true;
     }
 
-    bool writeUDPMail(char **buffer, Mail &mail) {
+    bool
+    writeUDPMail(char **buffer, Mail &mail) {
         const char *current = *buffer;
         mail.type = static_cast<Mail::MessageType>(static_cast<unsigned char>(*current));
         current++;
@@ -310,60 +428,69 @@ class MailBox {
             break;
         case Mail::MessageType::ERR: {
             printYellow("Error message");
-            Mail::ErrorMessage errMsg;
-            errMsg.MessageID = readUInt16(&current);
-            errMsg.DisplayName = readString(&current);
-            errMsg.MessageContent = readString(&current);
+            uint16_t msgID = readUInt16(&current);
+            std::string dN = readString(&current);
+            std::string mC = readString(&current);
+            Mail::ErrorMessage errMsg(msgID, dN, mC);
             mail.data = errMsg;
             mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::REPLY: {
             printYellow("Reply message");
-            Mail::ReplyMessage replyMsg;
-            replyMsg.MessageID = readUInt16(&current);
-            replyMsg.Result = *current;
+            uint16_t msgID = readUInt16(&current);
+            uint16_t result = *current;
             current++;
-            replyMsg.RefMessageID = readUInt16(&current);
-            replyMsg.MessageContent = readString(&current);
+            uint16_t refID = readUInt16(&current);
+            std::string mC = readString(&current);
+            Mail::ReplyMessage replyMsg(msgID, result, refID, mC);
             mail.data = replyMsg;
             mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::AUTH: {
             printYellow("Auth message");
-            Mail::AuthMessage authMsg;
-            authMsg.MessageID = readUInt16(&current);
-            authMsg.Username = readString(&current);
-            authMsg.DisplayName = readString(&current);
-            authMsg.Secret = readString(&current);
+            uint16_t msgID = readUInt16(&current);
+            std::string username = readString(&current);
+            std::string dN = readString(&current);
+            std::string secret = readString(&current);
+            Mail::AuthMessage authMsg(msgID, username, dN, secret);
             mail.data = authMsg;
             mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::JOIN: {
             printYellow("Join message");
-            Mail::JoinMessage joinMsg;
-            joinMsg.MessageID = readUInt16(&current);
-            joinMsg.ChannelID = readString(&current);
-            joinMsg.DisplayName = readString(&current);
+            uint16_t msgID = readUInt16(&current);
+            std::string channelID = readString(&current);
+            std::string dN = readString(&current);
+            Mail::JoinMessage joinMsg(msgID, channelID, dN);
             mail.data = joinMsg;
             mail.addToMailQueue = true;
             break;
         }
         case Mail::MessageType::MSG: {
             printYellow("Text message");
-            Mail::TextMessage srvMsg;
-            srvMsg.MessageID = readUInt16(&current);
-            srvMsg.DisplayName = readString(&current);
-            srvMsg.MessageContent = readString(&current);
+            uint16_t msgID = readUInt16(&current);
+            std::string disN = readString(&current);
+            std::string mC = readString(&current);
+            Mail::TextMessage srvMsg(msgID, disN, mC);
             mail.data = srvMsg;
             mail.addToMailQueue = true;
             break;
         }
         default:
-            printRed("Invalid message type");
-            return false;
+            uint16_t msgID;
+            try {
+                msgID = readUInt16(&current);
+            } catch (std::exception &e) {
+                std::cerr << "ERR: " << e.what() << std::endl;
+                return false;
+            }
+            std::cerr << "ERR: Unknown message type." << std::endl;
+            mail.type = Mail::MessageType::UNKNOWN;
+            mail.data = Mail::UnknownMessage{msgID};
+            mail.addToMailQueue = true;
             break;
         }
 
@@ -381,13 +508,24 @@ class MailBox {
         if (msgType == "BYE") {
             mail.type = Mail::MessageType::BYE;
         } else if (msgType == "ERR") {
-            Mail::ErrorMessage errMsg;
             std::string from;
             std::string is;
+            std::string dN, mC;
 
-            iss >> from >> errMsg.DisplayName >> is;
-            std::getline(iss, errMsg.MessageContent);                // Use getline to read the rest of the line
-            errMsg.MessageContent = errMsg.MessageContent.substr(1); // Remove leading space
+            iss >> from >> dN >> is;
+            std::getline(iss, mC);
+
+            // Check and remove a carriage return at the end, if present.
+            if (!mC.empty() && mC.back() == '\r') {
+                mC.pop_back();
+            }
+
+            // Safely remove a leading space, if present.
+            if (!mC.empty() && mC.front() == ' ') {
+                mC = mC.substr(1);
+            }
+
+            Mail::ErrorMessage errMsg(sequenceUDPNumber, dN, mC);
 
             if (from != "FROM" || is != "IS" || errMsg.MessageContent.empty()) {
                 printRed("Invalid message format");
@@ -400,13 +538,24 @@ class MailBox {
 
         } else if (msgType == "REPLY") {
             printYellow("Reply message");
-            Mail::ReplyMessage replyMsg;
-            std::string response;
-            std::string is;
+            std::string response, is, mC;
 
             iss >> response >> is;
-            std::getline(iss, replyMsg.MessageContent);                  // Use getline to read the rest of the line
-            replyMsg.MessageContent = replyMsg.MessageContent.substr(1); // Remove leading space
+            std::getline(iss, mC);
+
+            // Check and remove a carriage return at the end, if present.
+            if (!mC.empty() && mC.back() == '\r') {
+                mC.pop_back();
+            }
+
+            // Safely remove a leading space, if present.
+            if (!mC.empty() && mC.front() == ' ') {
+                mC = mC.substr(1);
+            }
+
+            std::cerr << "Response: " << response << ", IS: " << is << ", MessageContent: " << mC << std::endl;
+
+            Mail::ReplyMessage replyMsg(sequenceUDPNumber, response == "OK", -1, mC);
 
             if ((response != "OK" && response != "NOK") || is != "IS") {
                 printRed("Invalid message format");
@@ -414,21 +563,15 @@ class MailBox {
                 return false;
             }
 
-            if (response == "OK") {
-                replyMsg.Result = true;
-            } else {
-                replyMsg.Result = false;
-            }
-
             mail.type = Mail::MessageType::REPLY;
             mail.data = replyMsg;
             mail.addToMailQueue = true;
         } else if (msgType == "AUTH") {
-            Mail::AuthMessage authMsg;
-            std::string as;
-            std::string usg;
+            std::string as, usg, username, secret, dN;
 
-            iss >> authMsg.Username >> as >> authMsg.Secret >> usg >> authMsg.DisplayName;
+            iss >> username >> as >> secret >> usg >> dN;
+            Mail::AuthMessage authMsg(sequenceUDPNumber, username, dN, secret);
+
             if (as != "AS" || usg != "USING") {
                 printRed("Invalid message format");
                 return false;
@@ -439,10 +582,11 @@ class MailBox {
             mail.addToMailQueue = true;
 
         } else if (msgType == "JOIN") {
-            Mail::JoinMessage joinMsg;
-            std::string as;
+            std::string as, channelID, dN;
 
-            iss >> joinMsg.ChannelID >> as >> joinMsg.DisplayName;
+            iss >> channelID >> as >> dN;
+            Mail::JoinMessage joinMsg(sequenceUDPNumber, channelID, dN);
+
             if (as != "AS") {
                 printRed("Invalid message format");
                 return false;
@@ -452,13 +596,22 @@ class MailBox {
             mail.data = joinMsg;
             mail.addToMailQueue = true;
         } else if (msgType == "MSG") {
-            Mail::TextMessage srvMsg;
-            std::string from;
-            std::string is;
+            std::string from, is, dN, mC;
 
-            iss >> from >> srvMsg.DisplayName >> is;
-            std::getline(iss, srvMsg.MessageContent);                // Use getline to read the rest of the line
-            srvMsg.MessageContent = srvMsg.MessageContent.substr(1); // Remove leading space
+            iss >> from >> dN >> is;
+            std::getline(iss, mC);
+
+            // Check and remove a carriage return at the end, if present.
+            if (!mC.empty() && mC.back() == '\r') {
+                mC.pop_back();
+            }
+
+            // Safely remove a leading space, if present.
+            if (!mC.empty() && mC.front() == ' ') {
+                mC = mC.substr(1);
+            }
+
+            Mail::TextMessage srvMsg(sequenceUDPNumber, dN, mC);
 
             if (from != "FROM" || is != "IS") {
                 printRed("Invalid message format");
@@ -469,8 +622,9 @@ class MailBox {
             mail.data = srvMsg;
             mail.addToMailQueue = true;
         } else {
-            printRed("Invalid message type");
-            return false;
+            mail.type = Mail::MessageType::UNKNOWN;
+            mail.addToMailQueue = true;
+            std::cerr << "ERR: Unknown message type." << std::endl;
         }
         return true;
     }
@@ -585,6 +739,10 @@ class MailSerializer {
 
     void operator()(const Mail::ConfirmMessage &msg) {
         serialize(msg.RefMessageID);
+    }
+
+    void operator()(const Mail::UnknownMessage &msg) {
+        serialize(msg.MessageID);
     }
 
     void operator()(const Mail::AuthMessage &msg) {

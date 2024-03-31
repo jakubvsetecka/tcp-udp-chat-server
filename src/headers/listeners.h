@@ -37,7 +37,7 @@ class Listener {
 
         if (count == -1) {
             if (errno != EAGAIN) {
-                std::cerr << "Read error" << std::endl;
+                throw std::runtime_error("Failed to read from stdin");
                 close(efd);
                 return false;
             }
@@ -57,7 +57,7 @@ class Listener {
                 if (!line.empty()) {
                     Mail mail;
                     if (!mailbox->writeMail(line, mail)) {
-                        std::cerr << "Failed to write mail" << std::endl;
+                        throw std::runtime_error("Failed to write mail from stdin");
                         close(efd);
                         return false;
                     }
@@ -80,8 +80,7 @@ class Listener {
             event.events = EPOLLIN; // Read operation | Edge Triggered
             event.data.fd = fd;
             if (epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event) == -1) {
-                std::cerr << "Failed to add file descriptor to epoll, error: " << strerror(errno) << std::endl;
-                std::cerr << "File descriptor: " << std::to_string(fd) << " with name: " << std::to_string(fd_pair.second) << " not added to epoll" << std::endl;
+                throw std::runtime_error("Failed to add file descriptor to epoll");
                 close(efd);
                 return;
             }
@@ -91,8 +90,7 @@ class Listener {
 
     void unregisterFd(int fd, int efd) {
         if (epoll_ctl(efd, EPOLL_CTL_DEL, fd, nullptr) == -1) {
-            std::cerr << "Failed to remove file descriptor from epoll" << std::endl;
-            // You might choose to handle the error differently depending on your application's requirements
+            throw std::runtime_error("Failed to remove file descriptor from epoll");
         } else {
             printGreen("File descriptor: " + std::to_string(fd) + " removed from epoll");
         }
@@ -103,7 +101,7 @@ class Listener {
         event.events = EPOLLIN;
         event.data.fd = fd;
         if (epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event) == -1) {
-            std::cerr << "Failed to add file descriptor to epoll, error: " << strerror(errno) << std::endl;
+            throw std::runtime_error("Failed to add file descriptor to epoll");
             close(efd);
             return;
         }
@@ -112,16 +110,15 @@ class Listener {
 
     bool listenSocket(char *buffer, int efd) {
         if (!connection->receiveData(buffer)) {
-            std::cerr << "Failed to receive data" << std::endl;
+            throw std::runtime_error("Failed to receive data");
             close(efd);
             return false;
         }
 
         Mail mail;
         if (!mailbox->writeMail(&buffer, mail)) {
-            std::cerr << "Failed to write mail" << std::endl;
-            close(efd);
-            return false;
+            std::cerr << "Failed to write mail from socket" << std::endl;
+            keepRunning.store(false);
         }
 
         // For UDP
@@ -179,7 +176,7 @@ class Listener {
         ssize_t count = read(fd, buf, sizeof(buf)); // Clear the pipe
         if (count == -1) {
             if (errno != EAGAIN) {
-                std::cerr << "Read error" << std::endl;
+                throw std::runtime_error("Failed to read from send pipe");
                 close(efd);
                 return false;
             }
@@ -220,7 +217,7 @@ class Listener {
         ssize_t count = read(fd, buf, sizeof(buf)); // Clear the pipe
         if (count == -1) {
             if (errno != EAGAIN) {
-                std::cerr << "Read error" << std::endl;
+                throw std::runtime_error("Failed to read from signal pipe");
                 close(efd);
                 return false;
             }
@@ -244,7 +241,7 @@ class Listener {
         try {
             int efd = epoll_create1(0);
             if (efd == -1) {
-                std::cerr << "Failed to create epoll file descriptor" << std::endl;
+                throw std::runtime_error("Failed to create epoll file descriptor");
                 return;
             }
 
@@ -328,7 +325,7 @@ class Listener {
                             }
                             break;
                         case Unknown:
-                            std::cerr << "Unknown file descriptor type" << std::endl;
+                            throw std::runtime_error("Unknown file descriptor type");
                             break;
                             // ... other cases ...
                         }
@@ -430,6 +427,8 @@ class StdinListener {
                         listener->pipe->write(line + "\n");
                     } else {
                         // Break if getline fails (e.g., EOF or error)
+                        printRed("Failed to read from stdin");
+                        write(writeSignalFd, "1", 1);
                         break;
                     }
                 }

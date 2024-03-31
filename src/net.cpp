@@ -4,24 +4,24 @@
 bool TcpProtocol::createSocket() {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        std::cerr << "Failed to create socket" << std::endl;
         return false;
     }
     return true;
 }
 
 bool TcpProtocol::connectToServer() {
+    struct hostent *server = gethostbyname(ip.c_str());
+    if (server == NULL) {
+        throw std::runtime_error("No such host");
+    }
+
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) <= 0) {
-        std::cerr << "Invalid address/ Address not supported" << std::endl;
-        return false;
-    }
+    memcpy(&server_addr.sin_addr.s_addr, server->h_addr, server->h_length);
 
     if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        std::cerr << "Connection Failed" << std::endl;
-        return false;
+        throw std::runtime_error("Connection failed");
     }
     return true;
 }
@@ -61,21 +61,16 @@ void TcpProtocol::sendData(const Mail &mail) {
     std::vector<char> buffer = serializer.serialize(mail);
     int bytes_to_send = send(sockfd, buffer.data(), buffer.size(), 0);
     if (bytes_to_send < 0) {
-        std::cerr << "Failed to send data" << std::endl;
+        throw std::runtime_error("Failed to send data");
     }
     printRed("Sending data: " + std::string(buffer.data()) + " to " + ip + " on port " + std::to_string(port));
-    // int bytes_to_send = send(sockfd, mail.data, mail.args[0].size(), 0);
-    // if (bytes_to_send < 0) {
-    //     std::cerr << "Failed to send data" << std::endl;
-    // }
 }
 
 bool TcpProtocol::receiveData(char *buffer) {
     Mail mail;
     int bytes_received = recv(sockfd, buffer, 1024, 0);
     if (bytes_received < 0) {
-        std::cerr << "Failed to receive data" << std::endl;
-        // mail.type = -1;
+        throw std::runtime_error("Failed to receive data");
         return false;
     }
     // mail.args.push_back(std::string(buffer));
@@ -85,52 +80,38 @@ bool TcpProtocol::receiveData(char *buffer) {
 //==============================================================================
 
 bool UdpProtocol::createSocket() {
-    // Create a socket first if not already created
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    int family = AF_INET;
+    int type = SOCK_DGRAM;
+    sockfd = socket(family, type, 0);
     if (sockfd < 0) {
-        std::cerr << "Failed to create socket" << std::endl;
         return false;
     }
-
-    struct sockaddr_in client_addr;
-    memset(&client_addr, 0, sizeof(client_addr));
-
-    client_addr.sin_family = AF_INET;
-    client_addr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on any interface
-    client_addr.sin_port = htons(12345);             // Convert port number to network byte order
-
-    // Bind the socket
-    if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
-        std::cerr << "Bind failed" << std::endl;
-        return false;
-    }
-
-    printMagenta("UDP socket created: " + std::to_string(sockfd) + " on port 12345");
 
     return true;
 }
 
 bool UdpProtocol::connectToServer() {
+    struct hostent *server = gethostbyname(ip.c_str());
+    if (server == NULL) {
+        throw std::runtime_error("ERROR: no such host");
+    }
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) <= 0) {
-        std::cerr << "Invalid address/ Address not supported" << std::endl;
-        return false;
-    }
+    memcpy(&server_addr.sin_addr.s_addr,
+           server->h_addr, server->h_length);
 
-    // if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-    //     std::cerr << "Connection Failed" << std::endl;
-    //     return false;
-    // }
+    printGreen("Connected to server: " + ip + " on port " + std::to_string(port) + " with socket " + std::to_string(sockfd) + "\n");
+
     return true;
 }
 
 bool UdpProtocol::sendTo(const char *buffer, int size) {
-    std::cerr << "Sending data to " << ip << " on port " << port << std::endl;
+    printGreen("Sending data to " + ip + " on port " + std::to_string(port));
     int bytes_to_send = sendto(sockfd, buffer, size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (bytes_to_send < 0) {
-        std::cerr << "Failed to send data" << std::endl;
+        throw std::runtime_error("Failed to send data");
         return false;
     }
     return true;
@@ -186,11 +167,8 @@ void UdpProtocol::sendData(const Mail &mail) {
 
     printRed("Sending data: " + bufferAsString + " to " + ip + " on port " + std::to_string(port));
 
-    ssize_t sentBytes = sendto(sockfd, buffer.data(), buffer.size(), MSG_CONFIRM,
-                               (const struct sockaddr *)&server_addr, sizeof(server_addr));
-
-    if (sentBytes == -1) {
-        std::cerr << "Failed to send data: " << strerror(errno) << std::endl;
+    if (sendTo(buffer.data(), buffer.size()) == false) {
+        throw std::runtime_error("Failed to send data");
     }
 }
 
@@ -198,19 +176,19 @@ bool UdpProtocol::receiveData(char *buffer) {
     struct sockaddr_in fromAddr;
     socklen_t fromAddrLen = sizeof(fromAddr);
 
-    int bytes_received = recvfrom(sockfd, buffer, 1024, 0,
+    int bytes_received = recvfrom(sockfd, buffer, 1500, 0,
                                   (struct sockaddr *)&fromAddr, &fromAddrLen);
     if (bytes_received < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             // No data available right now, not an error in non-blocking mode
-            std::cerr << "No data available to read" << std::endl;
+            std::cerr << "ERR: No data available to read" << std::endl;
         } else {
-            std::cerr << "Failed to receive data: " << strerror(errno) << std::endl;
+            throw std::runtime_error("Failed to receive data");
         }
         return false;
     } else if (bytes_received == 0) {
         // Connection closed by peer, which should not occur in UDP
-        std::cerr << "Connection closed by peer" << std::endl;
+        throw std::runtime_error("Connection closed by peer");
         return false;
     }
 

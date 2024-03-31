@@ -18,8 +18,7 @@ int runMain(int argc, char **argv) {
 
     NetworkConnection connection(args.type, args.ip, args.port, args.timeout, args.retries);
     if (connection.openConnection() == false) {
-        std::cerr << "Failed to open connection" << std::endl;
-        return -1;
+        throw std::runtime_error("Failed to open connection");
     }
     int sockfd = connection.getFdsocket();
 
