@@ -44,6 +44,12 @@ class FSM {
                         state = ERROR;
                     }
                     break;
+                case Mail::MessageType::MSG:
+                    std::cout << "ERR: Unexpected message: " << std::get<Mail::TextMessage>(mail.data).MessageContent << std::endl;
+                    break;
+                case Mail::MessageType::JOIN:
+                    std::cout << "ERR: Unexpected message " << std::endl;
+                    break;
                 default:
                     mailbox.writeMail(Mail::MessageType::ERR, mail);
                     mailbox.sendMail(mail);
@@ -73,6 +79,12 @@ class FSM {
                     mailbox.writeMail(Mail::MessageType::BYE, mail);
                     mailbox.sendMail(mail);
                     state = END;
+                    break;
+                case Mail::MessageType::MSG:
+                    std::cout << "ERR: Unexpected message: " << std::get<Mail::TextMessage>(mail.data).MessageContent << std::endl;
+                    break;
+                case Mail::MessageType::JOIN:
+                    std::cout << "ERR: Unexpected message " << std::endl;
                     break;
                 default:
                     mailbox.writeMail(Mail::MessageType::ERR, mail);

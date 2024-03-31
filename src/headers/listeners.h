@@ -235,6 +235,8 @@ class Listener {
         mail.sigint = true;
         mailbox->addMail(mail);
 
+        keepRunning.store(false);
+
         return true;
     }
 
@@ -254,7 +256,7 @@ class Listener {
             StopWatch stopWatch;
 
             struct epoll_event events[10]; // Buffer where events are returned
-            while (keepRunning.load() && (!sentBye || !receivedConfirm)) {
+            while (keepRunning.load() || (!sentBye || !receivedConfirm)) {
                 // TODO: Remove this comment: LMAOOO THIS IS UGLY AS FUCK
                 if (!receivedConfirm && toSendRegistered) {
                     unregisterFd(mailbox->getNotifyListenerPipe()->getReadFd(), efd);
