@@ -17,18 +17,6 @@
 
 class Mail {
   public:
-    static void sanitizeString(std::string &str) {
-        // Remove ASCII control characters from the beginning
-        auto start = std::find_if(str.begin(), str.end(), [](unsigned char c) {
-            return c >= 32;
-        });
-        str.erase(str.begin(), start);
-
-        // Check and remove "\r\n" from the end if present
-        if (str.size() >= 1 && str.substr(str.size() - 1) == "\r") {
-            str.erase(str.size() - 1);
-        }
-    }
     // Validates a string using a regex pattern and length constraints
     static void validateString(const std::string &value, const std::regex &pattern,
                                std::size_t maxLength, const std::string &fieldName) {
@@ -281,8 +269,10 @@ class MailBox {
         incomingMails.pop();
 
         if (mail.type == Mail::MessageType::ERR) {
-            const auto &err = std::get<Mail::ErrorMessage>(mail.data);
-            std::cerr << "ERR FROM " << err.DisplayName << ": " << err.MessageContent << std::endl;
+            if (!mail.sigint) {
+                const auto &err = std::get<Mail::ErrorMessage>(mail.data);
+                std::cerr << "ERR FROM " << err.DisplayName << ": " << err.MessageContent << std::endl;
+            }
         } else if (mail.type == Mail::MessageType::MSG) {
             const auto &msg = std::get<Mail::TextMessage>(mail.data);
             if (!msg.ToSend) {
