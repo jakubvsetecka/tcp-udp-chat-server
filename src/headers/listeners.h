@@ -392,7 +392,9 @@ class Listener {
 
     static void handleSignal(int signum) {
         printRed("Interrupt signal (" + std::to_string(signum) + ") received.");
-        write(writeSignalFd, "1", 1);
+        if (write(writeSignalFd, "1", 1) == -1) {
+            throw std::runtime_error("Failed to write to signal pipe");
+        }
     }
 };
 
@@ -428,7 +430,9 @@ class StdinListener {
                     } else {
                         // Break if getline fails (e.g., EOF or error)
                         printRed("Failed to read from stdin");
-                        write(writeSignalFd, "1", 1);
+                        if (write(writeSignalFd, "1", 1) == -1) {
+                            throw std::runtime_error("Failed to write to signal pipe");
+                        }
                         break;
                     }
                 }

@@ -553,8 +553,6 @@ class MailBox {
                 mC = mC.substr(1);
             }
 
-            std::cerr << "Response: " << response << ", IS: " << is << ", MessageContent: " << mC << std::endl;
-
             Mail::ReplyMessage replyMsg(sequenceUDPNumber, response == "OK", -1, mC);
 
             if ((response != "OK" && response != "NOK") || is != "IS") {
