@@ -1,6 +1,7 @@
 import socket
 import struct
 import threading
+from queue import Queue
 
 # Server configuration
 LISTEN_IP = "127.0.0.1"
@@ -8,6 +9,10 @@ LISTEN_PORT = 4567
 DEST_IP = "127.0.0.1"
 DEST_PORT = 12345  # This will be updated dynamically
 USE_TCP = False  # Toggle this to switch between TCP and UDP
+# Global message queue
+message_queue = Queue()
+shutdown_event = threading.Event()
+server_thread = None
 
 # Create a global socket variable
 sock = None
@@ -24,6 +29,7 @@ def close_socket():
 
 def create_socket():
     global sock
+    close_socket()
     # Ensure any existing socket is closed before creating a new one
     close_socket()
     if USE_TCP:
@@ -33,6 +39,7 @@ def create_socket():
     else:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind(("127.0.0.1", 4567))
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     print(f"{'TCP' if USE_TCP else 'UDP'} server listening on 127.0.0.1:4567")
 
 
@@ -94,6 +101,7 @@ def send_udp_message(msg_type, **kwargs):
     sock.sendto(message, (DEST_IP, DEST_PORT))
 
 def send_message(msg_type, **kwargs):
+    print(f"Sending message: {msg_type}")
     if USE_TCP:
         send_tcp_message(msg_type, **kwargs)
     else:
@@ -103,7 +111,7 @@ def send_message(msg_type, **kwargs):
 def listen_for_message():
     global DEST_PORT
     # Set a timeout duration in seconds
-    timeout_duration = 5  # For example, 5 seconds
+    timeout_duration = 0.1  # For example, 5 seconds
 
     try:
         if USE_TCP:
@@ -124,30 +132,46 @@ def listen_for_message():
                 DEST_PORT = addr[1]
             print(f"Destination port set to {DEST_PORT}")
 
-            if len(data) >= 3:  # Check data length to safely extract refMessageId
+            if len(data) >= 3 and data[0] != 0x00:
                 ref_message_id = struct.unpack('!H', data[1:3])[0]
                 send_message('CONFIRM', ref_message_id=ref_message_id)
     except socket.timeout:
-        print("No data received within timeout period.")
+        pass
 
 def listen_for_messages():
     while True:
         listen_for_message()
 
 def start_server():
-    server_thread = threading.Thread(target=listen_for_messages, daemon=True)
+    server_thread = threading.Thread(target=server_thread_function, daemon=True)
     server_thread.start()
     print("Server started in background thread.")
 
 def end_server():
+    shutdown_event.set()
     close_socket()
     print("Server stopped.")
+
+def server_thread_function():
+    create_socket()
+    while not shutdown_event.is_set():
+        # Check for new messages to send
+        while not message_queue.empty():
+            msg_args = message_queue.get()
+            send_message(**msg_args)
+
+        # Existing server listen logic...
+        listen_for_message()
+    close_socket()
+
+def enqueue_message(msg_type, **kwargs):
+    message_queue.put({'msg_type': msg_type, **kwargs})
 
 def main():
     print("Starting server...")
     create_socket()
-    while True:
-        listen_for_message()
+    listen_for_message()
+    send_message('REPLY', message_id=0, result=True, message_contents='OK', display_name='a', ref_message_id=0)
 
 if __name__ == "__main__":
     main()
