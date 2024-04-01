@@ -1,68 +1,90 @@
-@startuml class_diagram
+@startuml
 
-interface IProtocol {
-    -ipAddress: String
-    -port: Number
-    +socket(): void
-    +sendto(): void
-    +recvfrom(): void
-    +close(): void
+class Mail {
+  -MessageType type
+  -MessageData data
+  +validateString()
+  +validateUsername()
+  +getMessageID()
 }
 
-class TCPProtocol implements IProtocol {
-    +connect(): void
-    +openConnection(): void
-    +authorize(): void
-    +joinChat(): void
-    +sendMessage(): void
-    +sendERR(): void
+class MailBox {
+  -ProtocolType delivery_service
+  -std::queue<Mail> incomingMails
+  -std::queue<Mail> outgoingMails
+  +waitMail()
+  +getOutgoingMail()
+  +addMail()
+  +sendMail()
 }
 
-class UDPProtocol implements IProtocol {
-    -timeOut: Number
-    -retries: Number
+class MailSerializer {
+  -std::vector<char> buffer
+  +serialize(const Mail &mail)
 }
 
-class Client {
-    -protocol: IProtocol
-    -currentState: State
-    +run(): void
-    +changeState(state: State): void
-    +sendMessage(message: Message): void
-    +receiveMessage(): void
+class ArgumentParser {
+  -int argc
+  -char *const *argv
+  +print()
+  +parse()
 }
 
-interface State {
-    +handleInput(input: String): void
+class FSM {
+  -State state
+  -MailBox &mailbox
+  +run()
 }
 
-class StartState implements State {
-    +handleInput(input: String): void
-    +printLicense(): void
-    +loadAuth(): void
+class Listener {
+  -std::unordered_map<int, fdType> fdMap
+  -MailBox *mailbox
+  +run()
+  +stop()
 }
 
-class AuthState implements State {
-    +handleInput(input: String): void
-    +getReply(): void
-    +loadAuth(): void
+class StdinListener {
+  -Pipe *pipe
+  +stop()
 }
 
-class OpenState implements State {
-    +handleInput(input: String): void
-    +joinChat(): void
-    +sendMessage(message: Message): void
+class NetworkProtocol {
+  {abstract}
+  +sendData(const Mail &mail)
+  +receiveData(char *buffer)
+  +openConnection()
+  +closeConnection()
 }
 
-class ErrorState implements State {
-    +handleInput(input: String): void
+class TcpProtocol {
+  +sendData(const Mail &mail)
+  +receiveData(char *buffer)
+  +openConnection()
+  +closeConnection()
 }
 
-class EndState implements State {
-    +handleInput(input: String): void
+class UdpProtocol {
+  +sendData(const Mail &mail)
+  +receiveData(char *buffer)
+  +openConnection()
+  +closeConnection()
 }
 
-Client "1" --> "1" IProtocol : uses >
-Client "1" --> "1" State : has >
+class NetworkConnection {
+  +sendData(const Mail &mail)
+  +receiveData(char *buffer)
+  +openConnection()
+  +closeConnection()
+}
+
+NetworkProtocol <|-down- TcpProtocol
+NetworkProtocol <|-down- UdpProtocol
+MailBox --> "1" Mail : contains
+MailBox o-- "1" MailSerializer : uses
+Listener --> "1" MailBox : interacts
+StdinListener --> "1" Pipe : uses
+FSM --> "1" MailBox : controls
+ArgumentParser ..> "1" MailBox : configures
+NetworkConnection ..> NetworkProtocol : uses
 
 @enduml
