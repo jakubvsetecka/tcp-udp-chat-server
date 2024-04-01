@@ -9,7 +9,7 @@ all: main
 
 # Compile the main program
 main: main.cpp
-	$(CXX) $(CXXFLAGS) -I$(HEADERS) main.cpp $(SRC_FILES) -o ./bin/main
+	$(CXX) $(CXXFLAGS) -I$(HEADERS) main.cpp $(SRC_FILES) -o ./ipk24chat-client
 
 # Start a server listening on port 8080 using netcat
 # -u for UDP
