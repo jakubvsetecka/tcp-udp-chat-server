@@ -1,6 +1,6 @@
-# IPK projekt 1
+# IPK project 1
 
-## Obsah
+## TOC
 
 -   [Theory](#theory)
     -   [Networking Fundamentals](#networking-fundamentals)
